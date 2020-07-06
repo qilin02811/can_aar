@@ -59,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 while (true) {
                     mcanFrame = canUtils.canreadBytes(scanFrame,1);
+                    Log.i(TAG, "recv can == " + mcanFrame.toString());
                     try {
                         Thread.sleep(10);
                     } catch (InterruptedException e) {

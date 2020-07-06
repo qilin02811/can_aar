@@ -176,8 +176,9 @@ JNIEXPORT jobject JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canreadBytes(
 				temp[k] = frame.data[k];
 				LOGD("temp[%d]=0x%x",k,temp[k]);
 			}
-			temp[k] = 0;
+//			temp[k] = 0;
 
+			LOGD("Can Read slect ?????.");
 			//frame.can_id = frame.can_id - 0x80000000;//读得的id比实际的有个80000000差值，这里需要处理一下
 			LOGD("Can Read slect success.");
 		}
@@ -199,11 +200,11 @@ JNIEXPORT jobject JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canreadBytes(
 	if(frame.can_dlc) {
 		LOGD("can_id is :0x%x", frame.can_id);
 		LOGD("can read nbytes=%d", frame.can_dlc);
-		LOGD("can data is:%s", temp);
+		LOGD("can data is:%s", frame.data);
 	}
 
     	(*env)->SetCharField(env, obj, leng, frame.can_dlc);
-    	(*env)->SetObjectField(env, obj, str, (*env)->NewStringUTF(env,temp));
+    	(*env)->SetObjectField(env, obj, str, (*env)->NewStringUTF(env,frame.data));
     	(*env)->SetIntField(env, obj, id, frame.can_id);
 
 	return   obj;

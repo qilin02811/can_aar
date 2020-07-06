@@ -15,7 +15,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags ""
+                cppFlags "-frtti -fexceptions"
             }
         }
     }
@@ -30,12 +30,6 @@ android {
     externalNativeBuild {
         cmake {
             path "CMakeLists.txt"
-        }
-    }
-
-    sourceSets {
-        main{
-            jniLibs.srcDirs= ['libs']
         }
     }
 }
