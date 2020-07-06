@@ -1,25 +1,20 @@
-package com.example.x6.mc_cantest;
+package com.hzmct.can;
 
-import android.app.KeyguardManager;
-import android.nfc.Tag;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
-import android.util.Size;
 import android.view.View;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.TextView;
-
-import java.io.FileDescriptor;
-
+import com.example.x6.mc_cantest.CanFrame;
+import com.example.x6.mc_cantest.CanUtils;
+import com.hzmct.can.R;
 
 public class MainActivity extends AppCompatActivity {
+ private static final String TAG = "MainActivity";
 
-
- private static final String TAG = "mc_cantest";
  private CanFrame mcanFrame, scanFrame;
  private int CanId = 0x111;
  private String can_data="";
@@ -37,7 +32,6 @@ public class MainActivity extends AppCompatActivity {
             can_text.append(str+"\n");
         }
     };
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -87,7 +81,5 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }).start();
-
     }
-
 }

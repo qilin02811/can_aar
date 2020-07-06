@@ -20,7 +20,6 @@
 // 引入log头文件
 #include <android/log.h>
 #include <strings.h>
-#include "properties.h"
 #include <sys/system_properties.h>
 // log标签
 #define  TAG    "CAN_Load_JNI"

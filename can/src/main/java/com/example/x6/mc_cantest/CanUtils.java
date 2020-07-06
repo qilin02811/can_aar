@@ -10,7 +10,6 @@ import java.io.IOException;
 
 
 public class CanUtils {
-
     private static final String TAG = "CanUtils";
     private static Process su;
     private FileInputStream mFileInputStream;
@@ -18,7 +17,6 @@ public class CanUtils {
     private static CanUtils canUtils= null;
 
     public CanUtils(){
-
         execRootCmdSilent("ifconfig can0 down");
         execRootCmdSilent("ip link set can0 up type can bitrate 100000");
 
@@ -28,8 +26,6 @@ public class CanUtils {
             e.printStackTrace();
         }
     }
-
-
 
     private static int execRootCmdSilent(String cmd) {
         int result = -1;
@@ -51,14 +47,13 @@ public class CanUtils {
                 try {
                     dos.close();
                 } catch (IOException e) {
-//                    e.printStackTrace();
+                    e.printStackTrace();
                 }
             }
         }
         return result;
     }
 
-//    public native static  void InitCan(int baudrate);
     public native  int canOpen();
     public native CanFrame canreadBytes(CanFrame canFrame ,int time);
     public native boolean canwriteBytes(int canId, byte[] data, int len);
@@ -67,5 +62,4 @@ public class CanUtils {
     static {
         System.loadLibrary("can_test");
     }
-
 }
