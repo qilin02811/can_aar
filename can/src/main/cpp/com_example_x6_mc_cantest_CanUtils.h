@@ -20,19 +20,19 @@ JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canOpen
 
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils
- * Method:    canreadBytes
+ * Method:    canReadBytes
  * Signature: ([B)[B
  */
-JNIEXPORT jobject JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canreadBytes
-  (JNIEnv *, jobject,jobject,jint);
+JNIEXPORT jobject JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes
+  (JNIEnv *, jobject, jint);
 
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils
- * Method:    canwriteBytes
+ * Method:    canWriteBytes
  * Signature: (ILjava/lang/String;)Z
  */
-JNIEXPORT jboolean JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canwriteBytes
-  (JNIEnv *, jobject, jint, jbyteArray,jint);
+JNIEXPORT jboolean JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes
+  (JNIEnv *, jobject, jobject);
 
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils

@@ -98,10 +98,8 @@ JNIEXPORT  void JNICALL Java_com_example_x6_mc_1cantest_CanUtils_InitCan
 */
 
 
-JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canOpen
-  (JNIEnv *env, jobject thiz){
-
-
+JNIEXPORT jint JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz) {
 //	struct ifreq ifr;
 	int ret;
 
@@ -117,136 +115,128 @@ JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canOpen
 	strcpy((char *)(ifr.ifr_name),"can0");
 	ioctl(canfd,SIOCGIFINDEX,&ifr);
 
-
-
 	addr.can_family = AF_CAN;
 	addr.can_ifindex = ifr.ifr_ifindex;
 	bind(canfd,(struct sockaddr*)&addr,sizeof(addr));
 
 	return canfd;
-  }
+}
 
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils
  * Method:    canreadBytes
  * Signature: (Ljava/io/FileDescriptor;[BI)I
  */
-JNIEXPORT jobject JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canreadBytes(JNIEnv *env, jobject thiz, jobject obj, jint time){
-
-
+JNIEXPORT jobject JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz, jint time){
 	unsigned long nbytes,len;
 
 	struct can_frame frame = {0};
 	int k=0;
-	jstring   jstr;
+	jstring jstr;
 
 	char temp[16];
 
 	fd_set rfds;
 	int retval;
 	struct timeval tv;
-        tv.tv_sec = time;
-        tv.tv_usec = 0;
+    tv.tv_sec = time;
+    tv.tv_usec = 0;
 
 	bzero(temp,16);
 
-	if(canfd==-1){
+	if (canfd == -1) {
 		LOGE("Can Read Without Open");
 		frame.can_id=0;
 		frame.can_dlc=0;
-	}
-	else
-	{
+	} else {
 		FD_ZERO(&rfds);
 		FD_SET(canfd, &rfds);
 		retval = select(canfd+1 , &rfds, NULL, NULL, &tv);
-		if(retval == -1)
-		{
+
+		if(retval == -1) {
 			LOGE("Can Read slect error");
 			frame.can_dlc=0;
 			frame.can_id=0;
-		}
-		else if(retval)
-		{
+		} else if (retval) {
 			nbytes = recvfrom(canfd, &frame, sizeof(struct can_frame), 0, (struct sockaddr *)&addr,&len);
 
-			for(k = 0;k < frame.can_dlc;k++)
-			{
+			for(k = 0;k < frame.can_dlc;k++) {
 				//LOGD("%c", frame.data[k]);
 				temp[k] = frame.data[k];
 				LOGD("temp[%d]=0x%x",k,temp[k]);
 			}
 //			temp[k] = 0;
 
-			LOGD("Can Read slect ?????.");
 			//frame.can_id = frame.can_id - 0x80000000;//读得的id比实际的有个80000000差值，这里需要处理一下
 			LOGD("Can Read slect success.");
-		}
-		else
-		{
+		} else {
 			frame.can_dlc=0;
 			frame.can_id=0;
-			//LOGD("Can no data.");
+			LOGD("Can no data.");
 		}
-
 	}
 
+	jclass canClass = (*env)->FindClass(env,"com/example/x6/mc_cantest/CanFrame");
+    jfieldID idCan = (*env)->GetFieldID(env, canClass,"canId","I");
+    jfieldID idLen = (*env)->GetFieldID(env, canClass,"len","C");
+    jfieldID idData = (*env)->GetFieldID(env, canClass,"data","[B");
 
-	jclass objectClass = (*env)->FindClass(env,"com/example/x6/mc_cantest/CanFrame");
-    	jfieldID id = (*env)->GetFieldID(env,objectClass,"can_id","I");
-    	jfieldID leng = (*env)->GetFieldID(env,objectClass,"can_dlc","C");
-    	jfieldID str = (*env)->GetFieldID(env,objectClass,"data","Ljava/lang/String;");
+    jmethodID constructMID = (*env)->GetMethodID(env, canClass, "<init>", "()V");
+	jobject canFrame = (*env)->NewObject(env, canClass, constructMID);
 
-	if(frame.can_dlc) {
-		LOGD("can_id is :0x%x", frame.can_id);
-		LOGD("can read nbytes=%d", frame.can_dlc);
-		LOGD("can data is:%s", frame.data);
-	}
+    jbyteArray dataArray = (*env)->NewByteArray(env, frame.can_dlc);
+    (*env)->SetByteArrayRegion(env, dataArray, 0, frame.can_dlc, (jbyte *)temp);
 
-    	(*env)->SetCharField(env, obj, leng, frame.can_dlc);
-    	(*env)->SetObjectField(env, obj, str, (*env)->NewStringUTF(env,frame.data));
-    	(*env)->SetIntField(env, obj, id, frame.can_id);
+    (*env)->SetIntField(env, canFrame, idCan, frame.can_id);
+    (*env)->SetCharField(env, canFrame, idLen, frame.can_dlc);
+    (*env)->SetObjectField(env, canFrame, idData, dataArray);
 
-	return   obj;
-
+	return canFrame;
 }
 
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils
  * Method:    canwriteBytes
  * Signature: (Ljava/io/FileDescriptor;[BI)Z
+Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz, jint canId,jbyteArray data,jint len){
  */
-JNIEXPORT jboolean JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canwriteBytes
-  (JNIEnv *env, jobject thiz, jint canId,jbyteArray data,jint len){
-
+JNIEXPORT jboolean JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz, jobject obj_can){
 	int nbytes;
 	int num = 0, i = 0;
 	struct can_frame frame;
+
+	jclass canCls  = (*env)->GetObjectClass(env, obj_can);
+    jfieldID idCan = (*env)->GetFieldID(env, canCls, "canId", "I");
+    jfieldID idLen = (*env)->GetFieldID(env, canCls,"len", "C");
+    jfieldID idData = (*env)->GetFieldID(env, canCls, "data", "[B");
+
+    jint canId = (*env)->GetIntField(env, obj_can, idCan);
+    jchar len = (*env)->GetCharField(env, obj_can, idLen);
+    jbyteArray data = (jbyteArray)(*env)->GetObjectField(env, obj_can, idData);
 
 	jboolean iscopy;
 	jbyte *send_data = (*env)->GetByteArrayElements(env, data, &iscopy);
 	frame.can_id = canId;
 
 //	if(strlen(send_data) > 8)//用于支持当输入的字符大于8时的情况，分次数发送
- if(len > 8)
-	{
+    if (len > 8){
 		//num = strlen(send_data) / 8;
 		num=len / 8;
-        for(i = 0;i < num;i++)
-		{
+        for(i = 0;i < num;i++){
 			my_strcpy((jbyte *)frame.data, &send_data[8 * i], 8);
 			frame.can_dlc = 8;
 			sendto(canfd,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&addr,sizeof(addr));
 		}
+
 		memset((jbyte *)frame.data, 0, 8);
 		my_strcpy((jbyte *)frame.data, &send_data[8 * i], strlen(send_data) - num * 8);
 		//frame.can_dlc = strlen(send_data) - num * 8;
         frame.can_dlc = len - num * 8;
         sendto(canfd,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&addr,sizeof(addr));
 		nbytes = len;
-	}
-	else
-	{
+	} else {
 		my_strcpy((jbyte *)frame.data, send_data, strlen(send_data));
 		//frame.can_dlc = strlen(send_data);
         frame.can_dlc = len;
@@ -254,25 +244,27 @@ JNIEXPORT jboolean JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canwriteByte
 		//nbytes = strlen(send_data);
         nbytes = len;
 	}
+
 	(*env)->ReleaseByteArrayElements(env, data, send_data,0);
 	LOGD("write nbytes=%d",nbytes);
 	return nbytes;
-  }
+}
 
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils
  * Method:    canClose
  * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canClose
-  (JNIEnv *env, jobject thiz){
-
-	if(canfd!=-1)
+JNIEXPORT jint JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_canClose(JNIEnv *env, jobject thiz){
+	if (canfd != -1) {
 		close(canfd);
+	}
+
 	canfd=-1;
 	LOGD("close can0");
 	return true;
-  }
+}
 
 
 

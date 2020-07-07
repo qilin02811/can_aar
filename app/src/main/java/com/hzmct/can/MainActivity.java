@@ -2,6 +2,7 @@ package com.hzmct.can;
 
 import android.os.Handler;
 import android.os.Message;
+import android.os.SystemClock;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -22,6 +23,7 @@ public class MainActivity extends AppCompatActivity {
  private CanUtils canUtils;
  private byte[] can_receive;
  //private String send_data="hzmct can test !";
+    private String recvStr = "receive data :\n";
 
     Handler handler = new Handler(){
         Bundle bundle = null;
@@ -37,7 +39,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        canUtils = new CanUtils();
+        canUtils = new CanUtils("can0", "100000");
         scanFrame= new CanFrame();
         canUtils.canOpen();
         Button button1=(Button) findViewById(R.id.k1);
@@ -47,7 +49,13 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 byte[] data={0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x12,0x11,0x1a,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x12,0x11,0x1a,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x12,0x11};
-                canUtils.canwriteBytes(0,data,data.length);
+//                canUtils.canwriteBytes(0,data,data.length);
+
+                CanFrame canFrame = new CanFrame();
+                canFrame.canId = 0;
+                canFrame.data = data;
+                canFrame.len = (char)(data.length);
+                canUtils.canWriteBytes(canFrame);
                 Log.d(TAG,"send over");
 
             }
@@ -58,27 +66,19 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 while (true) {
-                    mcanFrame = canUtils.canreadBytes(scanFrame,1);
-                    Log.i(TAG, "recv can == " + mcanFrame.toString());
-                    try {
-                        Thread.sleep(10);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
+                    mcanFrame = canUtils.canReadBytes(1);
+                    if (mcanFrame != null && mcanFrame.data != null && mcanFrame.data.length > 0) {
+                        Log.i(TAG, "recv can == " + mcanFrame.toString());
+                        recvStr += mcanFrame.bytesToHexString(mcanFrame.data, mcanFrame.data.length) + "\n";
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                can_text.setText(recvStr);
+                            }
+                        });
                     }
-//                    if (mcanFrame.data != null && can_receive.length > 0) {
-//                        String str="";
-//                        for (byte data : mcanFrame.data) {
-//                            str += String.format("0x%02x ", data);
-//                        }
-//                        Log.w(TAG, str);
-//                        Bundle bundle = new Bundle();
-//                        Message message = new Message();
-//                        bundle.putString(can_data,str);
-//                        message.setData(bundle);
-//                        handler.sendMessage(message);
-//                    } else {
-//                        Log.w(TAG, "没有接受到数据");
-//                    }
+
+                    SystemClock.sleep(100);
                 }
             }
         }).start();

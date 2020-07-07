@@ -1,33 +1,18 @@
 package com.example.x6.mc_cantest;
 
-import android.webkit.JavascriptInterface;
-
 import java.io.DataOutputStream;
-import java.io.FileDescriptor;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 
 
 public class CanUtils {
     private static final String TAG = "CanUtils";
-    private static Process su;
-    private FileInputStream mFileInputStream;
-    private FileOutputStream mFileOutputStream;
-    private static CanUtils canUtils= null;
 
-    public CanUtils(){
-        execRootCmdSilent("ifconfig can0 down");
-        execRootCmdSilent("ip link set can0 up type can bitrate 100000");
-
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+    public CanUtils(String can, String baudRate){
+        execRootCmdSilent("ifconfig " + can + " down");
+        execRootCmdSilent("ip link set " + can + " up type can bitrate " + baudRate);
     }
 
-    private static int execRootCmdSilent(String cmd) {
+    private int execRootCmdSilent(String cmd) {
         int result = -1;
         DataOutputStream dos = null;
 
@@ -54,12 +39,12 @@ public class CanUtils {
         return result;
     }
 
-    public native  int canOpen();
-    public native CanFrame canreadBytes(CanFrame canFrame ,int time);
-    public native boolean canwriteBytes(int canId, byte[] data, int len);
-    public native  int canClose();
+    public native int canOpen();
+    public native CanFrame canReadBytes(int time);
+    public native boolean canWriteBytes(CanFrame canFrame);
+    public native int canClose();
 
     static {
-        System.loadLibrary("can_test");
+        System.loadLibrary("mc_can");
     }
 }
