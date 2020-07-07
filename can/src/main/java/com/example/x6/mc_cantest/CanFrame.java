@@ -2,7 +2,7 @@ package com.example.x6.mc_cantest;
 
 public class CanFrame {
     public int canId;
-    public char len;
+    public int len;
     public byte[] data;
 
     public CanFrame() {}

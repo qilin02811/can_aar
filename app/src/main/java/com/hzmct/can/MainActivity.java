@@ -22,7 +22,6 @@ public class MainActivity extends AppCompatActivity {
  private TextView can_text;
  private CanUtils canUtils;
  private byte[] can_receive;
- //private String send_data="hzmct can test !";
     private String recvStr = "receive data :\n";
 
     Handler handler = new Handler(){
@@ -43,21 +42,23 @@ public class MainActivity extends AppCompatActivity {
         scanFrame= new CanFrame();
         canUtils.canOpen();
         Button button1=(Button) findViewById(R.id.k1);
-//        final EditText editText=(EditText) findViewById(R.id.send_data);
         can_text=(TextView) findViewById(R.id.can_rec);
+
         button1.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                byte[] data={0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x12,0x11,0x1a,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x12,0x11,0x1a,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x12,0x11};
-//                canUtils.canwriteBytes(0,data,data.length);
+                byte[] data={0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x12, 0x22};
 
-                CanFrame canFrame = new CanFrame();
-                canFrame.canId = 0;
-                canFrame.data = data;
-                canFrame.len = (char)(data.length);
-                canUtils.canWriteBytes(canFrame);
-                Log.d(TAG,"send over");
+                for(int i = 0, count = 100; i < count; i++) {
+                    CanFrame canFrame = new CanFrame();
+                    canFrame.canId = 0;
+                    canFrame.data = data;
+                    canFrame.len = data.length;
+                    canUtils.canWriteBytes(canFrame);
+                    Log.d(TAG,"send over");
 
+                    SystemClock.sleep(10);
+                }
             }
         });
         can_text.append("\n");

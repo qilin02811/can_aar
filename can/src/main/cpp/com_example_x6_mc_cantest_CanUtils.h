@@ -31,7 +31,7 @@ JNIEXPORT jobject JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes
  * Method:    canWriteBytes
  * Signature: (ILjava/lang/String;)Z
  */
-JNIEXPORT jboolean JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes
+JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes
   (JNIEnv *, jobject, jobject);
 
 /*

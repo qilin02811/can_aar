@@ -179,7 +179,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
 
 	jclass canClass = (*env)->FindClass(env,"com/example/x6/mc_cantest/CanFrame");
     jfieldID idCan = (*env)->GetFieldID(env, canClass,"canId","I");
-    jfieldID idLen = (*env)->GetFieldID(env, canClass,"len","C");
+    jfieldID idLen = (*env)->GetFieldID(env, canClass,"len","I");
     jfieldID idData = (*env)->GetFieldID(env, canClass,"data","[B");
 
     jmethodID constructMID = (*env)->GetMethodID(env, canClass, "<init>", "()V");
@@ -189,7 +189,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
     (*env)->SetByteArrayRegion(env, dataArray, 0, frame.can_dlc, (jbyte *)temp);
 
     (*env)->SetIntField(env, canFrame, idCan, frame.can_id);
-    (*env)->SetCharField(env, canFrame, idLen, frame.can_dlc);
+    (*env)->SetIntField(env, canFrame, idLen, frame.can_dlc);
     (*env)->SetObjectField(env, canFrame, idData, dataArray);
 
 	return canFrame;
@@ -201,7 +201,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
  * Signature: (Ljava/io/FileDescriptor;[BI)Z
 Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz, jint canId,jbyteArray data,jint len){
  */
-JNIEXPORT jboolean JNICALL
+JNIEXPORT jint JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz, jobject obj_can){
 	int nbytes;
 	int num = 0, i = 0;
@@ -209,11 +209,11 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 
 	jclass canCls  = (*env)->GetObjectClass(env, obj_can);
     jfieldID idCan = (*env)->GetFieldID(env, canCls, "canId", "I");
-    jfieldID idLen = (*env)->GetFieldID(env, canCls,"len", "C");
+    jfieldID idLen = (*env)->GetFieldID(env, canCls,"len", "I");
     jfieldID idData = (*env)->GetFieldID(env, canCls, "data", "[B");
 
     jint canId = (*env)->GetIntField(env, obj_can, idCan);
-    jchar len = (*env)->GetCharField(env, obj_can, idLen);
+    jint len = (*env)->GetIntField(env, obj_can, idLen);
     jbyteArray data = (jbyteArray)(*env)->GetObjectField(env, obj_can, idData);
 
 	jboolean iscopy;
@@ -231,13 +231,13 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 		}
 
 		memset((jbyte *)frame.data, 0, 8);
-		my_strcpy((jbyte *)frame.data, &send_data[8 * i], strlen(send_data) - num * 8);
+		my_strcpy((jbyte *)frame.data, &send_data[8 * i], len - num * 8);
 		//frame.can_dlc = strlen(send_data) - num * 8;
         frame.can_dlc = len - num * 8;
         sendto(canfd,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&addr,sizeof(addr));
 		nbytes = len;
 	} else {
-		my_strcpy((jbyte *)frame.data, send_data, strlen(send_data));
+		my_strcpy((jbyte *)frame.data, send_data, len);
 		//frame.can_dlc = strlen(send_data);
         frame.can_dlc = len;
         sendto(canfd,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&addr,sizeof(addr));
@@ -245,7 +245,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
         nbytes = len;
 	}
 
-	(*env)->ReleaseByteArrayElements(env, data, send_data,0);
+	(*env)->ReleaseByteArrayElements(env, data, send_data, 0);
 	LOGD("write nbytes=%d",nbytes);
 	return nbytes;
 }

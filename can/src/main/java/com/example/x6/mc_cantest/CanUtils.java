@@ -41,7 +41,7 @@ public class CanUtils {
 
     public native int canOpen();
     public native CanFrame canReadBytes(int time);
-    public native boolean canWriteBytes(CanFrame canFrame);
+    public native int canWriteBytes(CanFrame canFrame);
     public native int canClose();
 
     static {
