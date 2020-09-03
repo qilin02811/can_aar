@@ -119,6 +119,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz) {
 	addr.can_ifindex = ifr.ifr_ifindex;
 	bind(canfd,(struct sockaddr*)&addr,sizeof(addr));
 
+	LOGD("Can open");
 	return canfd;
 }
 
@@ -164,16 +165,16 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
 			for(k = 0;k < frame.can_dlc;k++) {
 				//LOGD("%c", frame.data[k]);
 				temp[k] = frame.data[k];
-				LOGD("temp[%d]=0x%x",k,temp[k]);
+				LOGD("read byte[%d]=0x%x",k,temp[k]);
 			}
 //			temp[k] = 0;
 
 			//frame.can_id = frame.can_id - 0x80000000;//读得的id比实际的有个80000000差值，这里需要处理一下
-			LOGD("Can Read slect success.");
+//			LOGD("Can Read slect success.");
 		} else {
 			frame.can_dlc=0;
 			frame.can_id=0;
-			LOGD("Can no data.");
+//			LOGD("Can no data.");
 		}
 	}
 
@@ -246,7 +247,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 	}
 
 	(*env)->ReleaseByteArrayElements(env, data, send_data, 0);
-	LOGD("write nbytes=%d",nbytes);
+//	LOGD("write nbytes=%d",nbytes);
 	return nbytes;
 }
 
@@ -262,7 +263,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canClose(JNIEnv *env, jobject thiz){
 	}
 
 	canfd=-1;
-	LOGD("close can0");
+	LOGD("Can close");
 	return true;
 }
 
