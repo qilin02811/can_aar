@@ -165,7 +165,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
 			for(k = 0;k < frame.can_dlc;k++) {
 				//LOGD("%c", frame.data[k]);
 				temp[k] = frame.data[k];
-				LOGD("read byte[%d]=0x%x",k,temp[k]);
+//				LOGD("read byte[%d]=0x%x",k,temp[k]);
 			}
 //			temp[k] = 0;
 
