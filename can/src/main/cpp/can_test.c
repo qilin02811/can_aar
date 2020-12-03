@@ -129,7 +129,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz) {
  * Signature: (Ljava/io/FileDescriptor;[BI)I
  */
 JNIEXPORT jobject JNICALL
-Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz, jint time){
+Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz, jint time, jboolean extend) {
 	unsigned long nbytes,len;
 
 	struct can_frame frame = {0};
@@ -180,7 +180,8 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
 
 	jclass canClass = (*env)->FindClass(env,"com/example/x6/mc_cantest/CanFrame");
     jfieldID idCan = (*env)->GetFieldID(env, canClass,"canId","I");
-    jfieldID idLen = (*env)->GetFieldID(env, canClass,"len","I");
+	jfieldID idExtend = (*env)->GetFieldID(env, canClass, "idExtend", "Z");
+	jfieldID idLen = (*env)->GetFieldID(env, canClass,"len","I");
     jfieldID idData = (*env)->GetFieldID(env, canClass,"data","[B");
 
     jmethodID constructMID = (*env)->GetMethodID(env, canClass, "<init>", "()V");
@@ -189,7 +190,8 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
     jbyteArray dataArray = (*env)->NewByteArray(env, frame.can_dlc);
     (*env)->SetByteArrayRegion(env, dataArray, 0, frame.can_dlc, (jbyte *)temp);
 
-    (*env)->SetIntField(env, canFrame, idCan, frame.can_id);
+	(*env)->SetBooleanField(env, canFrame, idExtend, extend);
+    (*env)->SetIntField(env, canFrame, idCan, frame.can_id + (extend ? 2147483648 : 0));
     (*env)->SetIntField(env, canFrame, idLen, frame.can_dlc);
     (*env)->SetObjectField(env, canFrame, idData, dataArray);
 
@@ -210,16 +212,18 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 
 	jclass canCls  = (*env)->GetObjectClass(env, obj_can);
     jfieldID idCan = (*env)->GetFieldID(env, canCls, "canId", "I");
+    jfieldID idExtend = (*env)->GetFieldID(env, canCls, "idExtend", "Z");
     jfieldID idLen = (*env)->GetFieldID(env, canCls,"len", "I");
     jfieldID idData = (*env)->GetFieldID(env, canCls, "data", "[B");
 
     jint canId = (*env)->GetIntField(env, obj_can, idCan);
+    jboolean extend = (*env)->GetBooleanField(env, obj_can, idExtend);
     jint len = (*env)->GetIntField(env, obj_can, idLen);
     jbyteArray data = (jbyteArray)(*env)->GetObjectField(env, obj_can, idData);
 
 	jboolean iscopy;
 	jbyte *send_data = (*env)->GetByteArrayElements(env, data, &iscopy);
-	frame.can_id = canId;
+	frame.can_id = canId + (extend ? 2147483648 : 0);
 
 //	if(strlen(send_data) > 8)//用于支持当输入的字符大于8时的情况，分次数发送
     if (len > 8){

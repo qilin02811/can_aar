@@ -40,7 +40,7 @@ public class CanUtils {
     }
 
     public native int canOpen();
-    public native CanFrame canReadBytes(int time);
+    public native CanFrame canReadBytes(int time, boolean idExtend);
     public native int canWriteBytes(CanFrame canFrame);
     public native int canClose();
 

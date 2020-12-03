@@ -8,8 +8,6 @@
 extern "C" {
 #endif
 
-//JNIEXPORT void JNICALL Java_com_example_x6_mc_1cantest_CanUtils_InitCan
-//  (JNIEnv *, jobject , jint );
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils
  * Method:    canOpen
@@ -24,7 +22,7 @@ JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canOpen
  * Signature: ([B)[B
  */
 JNIEXPORT jobject JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes
-  (JNIEnv *, jobject, jint);
+  (JNIEnv *, jobject, jint, jboolean);
 
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils
