@@ -40,8 +40,8 @@ public class MainActivity extends AppCompatActivity {
                 canFrame.idExtend = idExtend;
                 canFrame.data = data;
                 canFrame.len = data.length;
-                canUtils.canWriteBytes(canFrame);
-                Log.d(TAG,"send over");
+                int ret = canUtils.canWriteBytes(canFrame);
+                Log.d(TAG,"send over, ret == " + ret);
             }
         });
         can_text.append("\n");

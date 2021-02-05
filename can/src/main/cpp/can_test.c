@@ -191,7 +191,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
     (*env)->SetByteArrayRegion(env, dataArray, 0, frame.can_dlc, (jbyte *)temp);
 
 	(*env)->SetBooleanField(env, canFrame, idExtend, extend);
-    (*env)->SetIntField(env, canFrame, idCan, frame.can_id + (extend ? 2147483648 : 0));
+    (*env)->SetIntField(env, canFrame, idCan, frame.can_id + (extend ? (0x01 << 31) : 0));
     (*env)->SetIntField(env, canFrame, idLen, frame.can_dlc);
     (*env)->SetObjectField(env, canFrame, idData, dataArray);
 
@@ -223,7 +223,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 
 	jboolean iscopy;
 	jbyte *send_data = (*env)->GetByteArrayElements(env, data, &iscopy);
-	frame.can_id = canId + (extend ? 2147483648 : 0);
+	frame.can_id = canId + (extend ? (0x01 << 31) : 0);
 
 //	if(strlen(send_data) > 8)//用于支持当输入的字符大于8时的情况，分次数发送
     if (len > 8){
@@ -239,13 +239,19 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 		my_strcpy((jbyte *)frame.data, &send_data[8 * i], len - num * 8);
 		//frame.can_dlc = strlen(send_data) - num * 8;
         frame.can_dlc = len - num * 8;
-        sendto(canfd,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&addr,sizeof(addr));
+        int ret = sendto(canfd,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&addr,sizeof(addr));
+        if (ret < 0) {
+			return ret;
+        }
 		nbytes = len;
 	} else {
 		my_strcpy((jbyte *)frame.data, send_data, len);
 		//frame.can_dlc = strlen(send_data);
         frame.can_dlc = len;
-        sendto(canfd,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&addr,sizeof(addr));
+        int ret = sendto(canfd,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&addr,sizeof(addr));
+        if (ret < 0) {
+			return ret;
+        }
 		//nbytes = strlen(send_data);
         nbytes = len;
 	}
