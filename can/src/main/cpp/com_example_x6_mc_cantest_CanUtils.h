@@ -14,7 +14,7 @@ extern "C" {
  * Signature: ()I
  */
 JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canOpen
-  (JNIEnv *, jobject);
+  (JNIEnv *, jobject, jstring);
 
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils

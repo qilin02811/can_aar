@@ -99,27 +99,32 @@ JNIEXPORT  void JNICALL Java_com_example_x6_mc_1cantest_CanUtils_InitCan
 
 
 JNIEXPORT jint JNICALL
-Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz) {
+Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz, jstring can) {
 //	struct ifreq ifr;
 	int ret;
 
+    const char *get_can = (*env)->GetStringUTFChars(env, can, 0);
+    LOGD("open can is %s", get_can);
+
 	/* Opening device */
 	canfd = socket(PF_CAN,SOCK_RAW,CAN_RAW);
-
 	if(canfd==-1)
 	{
 		LOGE("Can Write Without Open");
 		return   0;
 	}
 
-	strcpy((char *)(ifr.ifr_name),"can0");
+	struct sockaddr_can addr_t;
+    addr_t.can_family = AF_CAN;
+    addr_t.can_ifindex = 0; // 关键点, 接口索引为0 ！！！
+    bind(canfd, (struct sockaddr *)&addr_t, sizeof(addr_t));
+
+	strcpy((char *)(ifr.ifr_name), get_can);
 	ioctl(canfd,SIOCGIFINDEX,&ifr);
-
 	addr.can_family = AF_CAN;
-	addr.can_ifindex = ifr.ifr_ifindex;
-	bind(canfd,(struct sockaddr*)&addr,sizeof(addr));
+    addr.can_ifindex = ifr.ifr_ifindex;
 
-	LOGD("Can open");
+	LOGD("Can open, canfd == %d", canfd);
 	return canfd;
 }
 
@@ -174,7 +179,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
 		} else {
 			frame.can_dlc=0;
 			frame.can_id=0;
-//			LOGD("Can no data.");
+//			LOGD("Can no data, canfd == %d", canfd);
 		}
 	}
 

@@ -39,7 +39,7 @@ public class CanUtils {
         return result;
     }
 
-    public native int canOpen();
+    public native int canOpen(String can);
     public native CanFrame canReadBytes(int time, boolean idExtend);
     public native int canWriteBytes(CanFrame canFrame);
     public native int canClose();
