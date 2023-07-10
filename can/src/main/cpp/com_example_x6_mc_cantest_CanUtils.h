@@ -14,7 +14,7 @@ extern "C" {
  * Signature: ()I
  */
 JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canOpen
-  (JNIEnv *, jobject, jstring);
+  (JNIEnv *, jobject);
 
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils
@@ -30,7 +30,7 @@ JNIEXPORT jobject JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes
  * Signature: (ILjava/lang/String;)Z
  */
 JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes
-  (JNIEnv *, jobject, jobject);
+  (JNIEnv *, jobject, jobject, jstring);
 
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils

@@ -7,9 +7,18 @@ import java.io.IOException;
 public class CanUtils {
     private static final String TAG = "CanUtils";
 
-    public CanUtils(String can, String baudRate){
-        execRootCmdSilent("ifconfig " + can + " down");
-        execRootCmdSilent("ip link set " + can + " up type can bitrate " + baudRate);
+    private CanUtils() {}
+
+    private static volatile CanUtils instance = null;
+    public static CanUtils getInstance() {
+        if (instance == null) {
+            synchronized (CanUtils.class) {
+                if (instance == null) {
+                    instance = new CanUtils();
+                }
+            }
+        }
+        return instance;
     }
 
     private int execRootCmdSilent(String cmd) {
@@ -39,9 +48,14 @@ public class CanUtils {
         return result;
     }
 
-    public native int canOpen(String can);
+    public void setCan(String can, String baudRate) {
+        execRootCmdSilent("ifconfig " + can + " down");
+        execRootCmdSilent("ip link set " + can + " up type can bitrate " + baudRate);
+    }
+
+    public native int canOpen();
     public native CanFrame canReadBytes(int time, boolean idExtend);
-    public native int canWriteBytes(CanFrame canFrame);
+    public native int canWriteBytes(CanFrame canFrame, String can);
     public native int canClose();
 
     static {

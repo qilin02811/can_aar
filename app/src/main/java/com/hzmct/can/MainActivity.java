@@ -25,8 +25,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        canUtils = new CanUtils("can0", "100000");
-        canUtils.canOpen("can0");
+        canUtils = CanUtils.getInstance();
+        canUtils.setCan("can0", "100000");
+        canUtils.canOpen();
         Button button1=(Button) findViewById(R.id.k1);
         can_text=(TextView) findViewById(R.id.can_rec);
 
@@ -40,7 +41,7 @@ public class MainActivity extends AppCompatActivity {
                 canFrame.idExtend = idExtend;
                 canFrame.data = data;
                 canFrame.len = data.length;
-                int ret = canUtils.canWriteBytes(canFrame);
+                int ret = canUtils.canWriteBytes(canFrame, "can0");
                 Log.d(TAG,"send over, ret == " + ret);
             }
         });

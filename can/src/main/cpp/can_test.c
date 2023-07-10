@@ -45,8 +45,7 @@ struct ifreq ifr;
 
 typedef __u32 can_baudrate_t;
 
-static int sock=-1;
-int canfd=-1;
+static int sock = -1;
 struct sockaddr_can addr;
 struct ifreq ifr;
 void my_strcpy(char *dest, char *src, size_t n)
@@ -99,16 +98,14 @@ JNIEXPORT  void JNICALL Java_com_example_x6_mc_1cantest_CanUtils_InitCan
 
 
 JNIEXPORT jint JNICALL
-Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz, jstring can) {
+Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz) {
 //	struct ifreq ifr;
 	int ret;
 
-    const char *get_can = (*env)->GetStringUTFChars(env, can, 0);
-    LOGD("open can is %s", get_can);
 
 	/* Opening device */
-	canfd = socket(PF_CAN,SOCK_RAW,CAN_RAW);
-	if(canfd==-1)
+	sock = socket(PF_CAN,SOCK_RAW,CAN_RAW);
+	if(sock == -1)
 	{
 		LOGE("Can Write Without Open");
 		return   0;
@@ -117,15 +114,15 @@ Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz, jstr
 	struct sockaddr_can addr_t;
     addr_t.can_family = AF_CAN;
     addr_t.can_ifindex = 0; // 关键点, 接口索引为0 ！！！
-    bind(canfd, (struct sockaddr *)&addr_t, sizeof(addr_t));
+    bind(sock, (struct sockaddr *)&addr_t, sizeof(addr_t));
 
-	strcpy((char *)(ifr.ifr_name), get_can);
-	ioctl(canfd,SIOCGIFINDEX,&ifr);
-	addr.can_family = AF_CAN;
-    addr.can_ifindex = ifr.ifr_ifindex;
+//	strcpy((char *)(ifr.ifr_name), get_can);
+//	ioctl(sock,SIOCGIFINDEX,&ifr);
+//	addr.can_family = AF_CAN;
+//    addr.can_ifindex = ifr.ifr_ifindex;
 
-	LOGD("Can open, canfd == %d", canfd);
-	return canfd;
+	LOGD("Can open, socket fd == %d", sock);
+	return sock;
 }
 
 /*
@@ -151,26 +148,26 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
 
 	bzero(temp,16);
 
-	if (canfd == -1) {
+	if (sock == -1) {
 		LOGE("Can Read Without Open");
 		frame.can_id=0;
 		frame.can_dlc=0;
 	} else {
 		FD_ZERO(&rfds);
-		FD_SET(canfd, &rfds);
-		retval = select(canfd+1 , &rfds, NULL, NULL, &tv);
+		FD_SET(sock, &rfds);
+		retval = select(sock+1 , &rfds, NULL, NULL, &tv);
 
 		if(retval == -1) {
-			LOGE("Can Read slect error");
+			LOGE("Can Read select error");
 			frame.can_dlc=0;
 			frame.can_id=0;
 		} else if (retval) {
-			nbytes = recvfrom(canfd, &frame, sizeof(struct can_frame), 0, (struct sockaddr *)&addr,&len);
+			nbytes = recvfrom(sock, &frame, sizeof(struct can_frame), 0, (struct sockaddr *)&addr, &len);
 
+//            LOGD("ID=0x%X DLC=%d Data: ", frame.can_id, frame.can_dlc);
 			for(k = 0;k < frame.can_dlc;k++) {
-				//LOGD("%c", frame.data[k]);
 				temp[k] = frame.data[k];
-//				LOGD("read byte[%d]=0x%x",k,temp[k]);
+//				LOGD("0x%02X ", frame.data[k]);
 			}
 //			temp[k] = 0;
 
@@ -179,7 +176,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
 		} else {
 			frame.can_dlc=0;
 			frame.can_id=0;
-//			LOGD("Can no data, canfd == %d", canfd);
+//			LOGD("Can no data, socket fd == %d", sock);
 		}
 	}
 
@@ -210,7 +207,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
 Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz, jint canId,jbyteArray data,jint len){
  */
 JNIEXPORT jint JNICALL
-Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz, jobject obj_can){
+Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz, jobject obj_can, jstring can) {
 	int nbytes;
 	int num = 0, i = 0;
 	struct can_frame frame;
@@ -230,6 +227,14 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 	jbyte *send_data = (*env)->GetByteArrayElements(env, data, &iscopy);
 	frame.can_id = canId + (extend ? (0x01 << 31) : 0);
 
+    const char *get_can = (*env)->GetStringUTFChars(env, can, 0);
+//    LOGD("write can is %s", get_can);
+    strcpy((char *)(ifr.ifr_name), get_can);
+    ioctl(sock,SIOCGIFINDEX,&ifr);
+    struct sockaddr_can write_addr;
+    write_addr.can_family = AF_CAN;
+    write_addr.can_ifindex = ifr.ifr_ifindex;
+
 //	if(strlen(send_data) > 8)//用于支持当输入的字符大于8时的情况，分次数发送
     if (len > 8){
 		//num = strlen(send_data) / 8;
@@ -237,14 +242,14 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
         for(i = 0;i < num;i++){
 			my_strcpy((jbyte *)frame.data, &send_data[8 * i], 8);
 			frame.can_dlc = 8;
-			sendto(canfd,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&addr,sizeof(addr));
+			sendto(sock,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&write_addr,sizeof(addr));
 		}
 
 		memset((jbyte *)frame.data, 0, 8);
 		my_strcpy((jbyte *)frame.data, &send_data[8 * i], len - num * 8);
 		//frame.can_dlc = strlen(send_data) - num * 8;
         frame.can_dlc = len - num * 8;
-        int ret = sendto(canfd,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&addr,sizeof(addr));
+        int ret = sendto(sock,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&write_addr,sizeof(addr));
         if (ret < 0) {
 			return ret;
         }
@@ -253,7 +258,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 		my_strcpy((jbyte *)frame.data, send_data, len);
 		//frame.can_dlc = strlen(send_data);
         frame.can_dlc = len;
-        int ret = sendto(canfd,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&addr,sizeof(addr));
+        int ret = sendto(sock,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&write_addr,sizeof(addr));
         if (ret < 0) {
 			return ret;
         }
@@ -273,11 +278,11 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
  */
 JNIEXPORT jint JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_canClose(JNIEnv *env, jobject thiz){
-	if (canfd != -1) {
-		close(canfd);
+	if (sock != -1) {
+		close(sock);
 	}
 
-	canfd=-1;
+	sock = -1;
 	LOGD("Can close");
 	return true;
 }
