@@ -43,7 +43,7 @@ struct ifreq ifr;
 #define CAN_RAW_FILTER  1
 #define CAN_RAW_RECV_OWN_MSGS 0x4 
 
-typedef __u32 can_baudrate_t;
+typedef __u32 can_baudrate_t; // can 波特率
 
 static int sock = -1;
 struct sockaddr_can addr;
@@ -99,10 +99,7 @@ JNIEXPORT  void JNICALL Java_com_example_x6_mc_1cantest_CanUtils_InitCan
 
 JNIEXPORT jint JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz) {
-//	struct ifreq ifr;
 	int ret;
-
-
 	/* Opening device */
 	sock = socket(PF_CAN,SOCK_RAW,CAN_RAW);
 	if(sock == -1)
@@ -110,17 +107,14 @@ Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz) {
 		LOGE("Can Write Without Open");
 		return   0;
 	}
-
 	struct sockaddr_can addr_t;
     addr_t.can_family = AF_CAN;
-    addr_t.can_ifindex = 0; // 关键点, 接口索引为0 ！！！
+    addr_t.can_ifindex = 0; // 关键点, 接口索引为0！！！
+    // 将can_ifindex字段设置为0表示使用默认的网络接口。
+    // 默认的网络接口通常是指连接在主机上的第一个CAN总线。系统会自动分配网络接口索引给每个CAN总线，
+    // 因此将can_ifindex设置为0就可以使用默认的网络接口。如果有多个CAN总线连接在主机上，可以使用不同的网络接口索引来区分它们。
+
     bind(sock, (struct sockaddr *)&addr_t, sizeof(addr_t));
-
-//	strcpy((char *)(ifr.ifr_name), get_can);
-//	ioctl(sock,SIOCGIFINDEX,&ifr);
-//	addr.can_family = AF_CAN;
-//    addr.can_ifindex = ifr.ifr_ifindex;
-
 	LOGD("Can open, socket fd == %d", sock);
 	return sock;
 }
@@ -141,7 +135,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
 	char temp[16];
 
 	fd_set rfds;
-	int retval;
+	int retval; //返回值
 	struct timeval tv;
     tv.tv_sec = time;
     tv.tv_usec = 0;
@@ -155,11 +149,12 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
 	} else {
 		FD_ZERO(&rfds);
 		FD_SET(sock, &rfds);
-		retval = select(sock+1 , &rfds, NULL, NULL, &tv);
+		retval = select(sock+1 , &rfds, NULL, NULL, &tv);//使用select函数进行套接字监听的操作，超时事件为tv
+		//retval 表示在指定时间内发生事件的文件描述符的数量，如果retval = 0，表示超时，如果retval = -1，表示发生错误，否则表示发生事件的文件描述符数量
 
 		if(retval == -1) {
 			LOGE("Can Read select error");
-			frame.can_dlc=0;
+			frame.can_dlc=0;  // 数据场长度
 			frame.can_id=0;
 		} else if (retval) {
 			nbytes = recvfrom(sock, &frame, sizeof(struct can_frame), 0, (struct sockaddr *)&addr, &len);
@@ -170,34 +165,33 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
 //				LOGD("0x%02X ", frame.data[k]);
 			}
 //			temp[k] = 0;
-
 			//frame.can_id = frame.can_id - 0x80000000;//读得的id比实际的有个80000000差值，这里需要处理一下
 //			LOGD("Can Read slect success.");
 		} else {
 			frame.can_dlc=0;
 			frame.can_id=0;
-//			LOGD("Can no data, socket fd == %d", sock);
+//			LOGD("Can no data and time out, socket fd == %d", sock);
 		}
 	}
 
-	jclass canClass = (*env)->FindClass(env,"com/example/x6/mc_cantest/CanFrame");
-    jfieldID idCan = (*env)->GetFieldID(env, canClass,"canId","I");
-	jfieldID idExtend = (*env)->GetFieldID(env, canClass, "idExtend", "Z");
-	jfieldID idLen = (*env)->GetFieldID(env, canClass,"len","I");
-    jfieldID idData = (*env)->GetFieldID(env, canClass,"data","[B");
+	jclass canClass = (*env)->FindClass(env,"com/example/x6/mc_cantest/CanFrame"); // 获取Java类的引用
+    jfieldID idCan = (*env)->GetFieldID(env, canClass,"canId","I"); //获取canId在Java虚拟机中的引用
+	jfieldID idExtend = (*env)->GetFieldID(env, canClass, "idExtend", "Z"); //获取idExtend在Java虚拟机中的引用
+	jfieldID idLen = (*env)->GetFieldID(env, canClass,"len","I"); //获取len在Java虚拟机中的引用
+    jfieldID idData = (*env)->GetFieldID(env, canClass,"data","[B"); // 获取data在Java虚拟机中的引用
 
-    jmethodID constructMID = (*env)->GetMethodID(env, canClass, "<init>", "()V");
-	jobject canFrame = (*env)->NewObject(env, canClass, constructMID);
+    jmethodID constructMID = (*env)->GetMethodID(env, canClass, "<init>", "()V"); //获取init方法在Java虚拟机中的引用
+	jobject canFrame = (*env)->NewObject(env, canClass, constructMID); // NewObject通过构造方法创建新的canFrame对象
 
-    jbyteArray dataArray = (*env)->NewByteArray(env, frame.can_dlc);
-    (*env)->SetByteArrayRegion(env, dataArray, 0, frame.can_dlc, (jbyte *)temp);
+    jbyteArray dataArray = (*env)->NewByteArray(env, frame.can_dlc); // 创建一个新的字节数组对象
+    (*env)->SetByteArrayRegion(env, dataArray, 0, frame.can_dlc, (jbyte *)temp); //数组temp的内容复制到Java字节数组dataArray中，从位置0开始，复制长度为frame.can_dlc的字节
 
-	(*env)->SetBooleanField(env, canFrame, idExtend, extend);
-    (*env)->SetIntField(env, canFrame, idCan, frame.can_id + (extend ? (0x01 << 31) : 0));
-    (*env)->SetIntField(env, canFrame, idLen, frame.can_dlc);
-    (*env)->SetObjectField(env, canFrame, idData, dataArray);
-
+	(*env)->SetBooleanField(env, canFrame, idExtend, extend); //设置canFrame的idExtend字段值
+    (*env)->SetIntField(env, canFrame, idCan, frame.can_id + (extend ? (0x01 << 31) : 0)); //设置canFrame的idCan字段值，如果extend有值则将idCan的二进制最高位设置为1
+    (*env)->SetIntField(env, canFrame, idLen, frame.can_dlc); // 设置canFrame的idLen值，即数据长度
+    (*env)->SetObjectField(env, canFrame, idData, dataArray); // 设置canFrame的idData字段
 	return canFrame;
+	//返回使用JNI封装的canFrame对象，以提供给Java层使用
 }
 
 /*
@@ -212,43 +206,57 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 	int num = 0, i = 0;
 	struct can_frame frame;
 
+	//jfiedId是指针，用于访问和操作java类的字段
 	jclass canCls  = (*env)->GetObjectClass(env, obj_can);
     jfieldID idCan = (*env)->GetFieldID(env, canCls, "canId", "I");
     jfieldID idExtend = (*env)->GetFieldID(env, canCls, "idExtend", "Z");
     jfieldID idLen = (*env)->GetFieldID(env, canCls,"len", "I");
     jfieldID idData = (*env)->GetFieldID(env, canCls, "data", "[B");
 
-    jint canId = (*env)->GetIntField(env, obj_can, idCan);
-    jboolean extend = (*env)->GetBooleanField(env, obj_can, idExtend);
-    jint len = (*env)->GetIntField(env, obj_can, idLen);
-    jbyteArray data = (jbyteArray)(*env)->GetObjectField(env, obj_can, idData);
+    jint canId = (*env)->GetIntField(env, obj_can, idCan); //获取idCan所指向的数据赋值给canId
+    jboolean extend = (*env)->GetBooleanField(env, obj_can, idExtend); //获取idExtend所指向的数据赋值给extend
+    jint len = (*env)->GetIntField(env, obj_can, idLen); //获取idLen所指向的数据赋值给len
+    jbyteArray data = (jbyteArray)(*env)->GetObjectField(env, obj_can, idData); // 获取idData所指向的数据赋值给data
 
 	jboolean iscopy;
-	jbyte *send_data = (*env)->GetByteArrayElements(env, data, &iscopy);
+	jbyte *send_data = (*env)->GetByteArrayElements(env, data, &iscopy); //获取Java字节数组data的元素，拷贝到send_data指向的内存位置上，转换为C/C++的字节数组
 	frame.can_id = canId + (extend ? (0x01 << 31) : 0);
 
     const char *get_can = (*env)->GetStringUTFChars(env, can, 0);
-//    LOGD("write can is %s", get_can);
+    LOGD("write can is %s", get_can);
     strcpy((char *)(ifr.ifr_name), get_can);
-    ioctl(sock,SIOCGIFINDEX,&ifr);
-    struct sockaddr_can write_addr;
+    int r = ioctl(sock,SIOCGIFINDEX,&ifr);
+    // 这里调用ioctl使得sock获取到ifr的接口索引，
+    // 但如果设备没有对应设置的can口则无法获取到，所以应该设置返回值r，r = 0说明获取到，r = -1说明获取失败。
+    // LOGD("r = %d",r);
+
+    //这里对未存在的can口需要返回-1，避免通过canOpen方法初始化的sock在总线上传递数据
+    if(r == -1)
+    {
+        return -1;
+    }
+
+	struct sockaddr_can write_addr;
     write_addr.can_family = AF_CAN;
     write_addr.can_ifindex = ifr.ifr_ifindex;
+	LOGD("write_addr.can_ifindex = %d",ifr.ifr_ifindex);
 
 //	if(strlen(send_data) > 8)//用于支持当输入的字符大于8时的情况，分次数发送
     if (len > 8){
 		//num = strlen(send_data) / 8;
-		num=len / 8;
+		num=len / 8; // 一次发8位
         for(i = 0;i < num;i++){
 			my_strcpy((jbyte *)frame.data, &send_data[8 * i], 8);
+
 			frame.can_dlc = 8;
 			sendto(sock,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&write_addr,sizeof(addr));
+			//sendto 发送数据帧frame 到套接字sock，指定目标地址write_addr,sizeof(struct can_frame)表示数据帧的大小，sizeof(addr)表示要发送的数据的字节数
 		}
 
 		memset((jbyte *)frame.data, 0, 8);
 		my_strcpy((jbyte *)frame.data, &send_data[8 * i], len - num * 8);
 		//frame.can_dlc = strlen(send_data) - num * 8;
-        frame.can_dlc = len - num * 8;
+        frame.can_dlc = len - num * 8;  //这里can_dlc保存的是按8位8位发送数据后余下的数据长度
         int ret = sendto(sock,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&write_addr,sizeof(addr));
         if (ret < 0) {
 			return ret;
@@ -266,7 +274,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
         nbytes = len;
 	}
 
-	(*env)->ReleaseByteArrayElements(env, data, send_data, 0);
+	(*env)->ReleaseByteArrayElements(env, data, send_data, 0); //释放通过 GetByteArrayElements 函数获取的数组元素指针data
 //	LOGD("write nbytes=%d",nbytes);
 	return nbytes;
 }
@@ -279,7 +287,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 JNIEXPORT jint JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_canClose(JNIEnv *env, jobject thiz){
 	if (sock != -1) {
-		close(sock);
+		close(sock); //关闭套接字
 	}
 
 	sock = -1;
