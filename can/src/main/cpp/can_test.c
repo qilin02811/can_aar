@@ -223,7 +223,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 	frame.can_id = canId + (extend ? (0x01 << 31) : 0);
 
     const char *get_can = (*env)->GetStringUTFChars(env, can, 0);
-    LOGD("write can is %s", get_can);
+//    LOGD("write can is %s", get_can);
     strcpy((char *)(ifr.ifr_name), get_can);
     int r = ioctl(sock,SIOCGIFINDEX,&ifr);
     // 这里调用ioctl使得sock获取到ifr的接口索引，
@@ -239,7 +239,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 	struct sockaddr_can write_addr;
     write_addr.can_family = AF_CAN;
     write_addr.can_ifindex = ifr.ifr_ifindex;
-	LOGD("write_addr.can_ifindex = %d",ifr.ifr_ifindex);
+//	LOGD("write_addr.can_ifindex = %d",ifr.ifr_ifindex);
 
 //	if(strlen(send_data) > 8)//用于支持当输入的字符大于8时的情况，分次数发送
     if (len > 8){
