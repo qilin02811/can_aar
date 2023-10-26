@@ -21,9 +21,9 @@
 /* controller area network (CAN) kernel definitions */
 
 /* special address description flags for the CAN_ID */
-#define CAN_EFF_FLAG 0x80000000U /* EFF/SFF is set in the MSB */
-#define CAN_RTR_FLAG 0x40000000U /* remote transmission request */
-#define CAN_ERR_FLAG 0x20000000U /* error frame */
+#define CAN_EFF_FLAG 0x80000000U /* EFF/SFF is set in the MSB */  // 扩展帧
+#define CAN_RTR_FLAG 0x40000000U /* remote transmission request */ //远程帧
+#define CAN_ERR_FLAG 0x20000000U /* error frame */ //错误帧
 
 /* valid bits in CAN ID for frame formats */
 #define CAN_SFF_MASK 0x000007FFU /* standard frame format (SFF) */
@@ -33,7 +33,7 @@
 /*
  * Controller Area Network Identifier structure
  *
- * bit 0-28	: CAN identifier (11/29 bit)
+ * bit 0-28	: CAN identifier (11/29 bit)  标准帧使用11位，扩展帧使用28位
  * bit 29	: error frame flag (0 = data frame, 1 = error frame)
  * bit 30	: remote transmission request flag (1 = rtr frame)
  * bit 31	: frame format flag (0 = standard 11 bit, 1 = extended 29 bit)
@@ -56,8 +56,8 @@ typedef __u32 can_err_mask_t;
  */
 struct can_frame {
 	canid_t can_id;  /* 32 bit CAN_ID + EFF/RTR/ERR flags */
-	__u8    can_dlc; /* data length code: 0 .. 8 */
-	__u8    data[8] __attribute__((aligned(8)));
+	__u8    can_dlc; /* data length code: 0 .. 8 */  //数据场长度
+	__u8    data[8] __attribute__((aligned(8)));  // 数据
 };
 
 /* particular protocols of the protocol family PF_CAN */
@@ -102,8 +102,8 @@ struct sockaddr_can {
  * filter for error frames (CAN_ERR_FLAG bit set in mask).
  */
 struct can_filter {
-	canid_t can_id;
-	canid_t can_mask;
+	canid_t can_id; // can id
+	canid_t can_mask; // can 掩码
 };
 
 #define CAN_INV_FILTER 0x20000000U /* to be set in can_filter.can_id */
