@@ -7,8 +7,7 @@ public class CanFrame {
     public boolean idExtend = false;
     public int len;
     public byte[] data;
-
-    public CanFrame() {}
+    public String canPort;
 
     @Override
     public String toString() {
@@ -16,9 +15,13 @@ public class CanFrame {
                 "canId=" + canId +
                 ", idExtend=" + idExtend +
                 ", len=" + len +
-                ", data=" + bytesToHexString(data, data.length) +
+                ", data=" + Arrays.toString(data) +
+                ", canPort='" + canPort + '\'' +
                 '}';
     }
+
+
+    public CanFrame() {}
 
     public String bytesToHexString(byte[] src, int size) {
         String ret = "";

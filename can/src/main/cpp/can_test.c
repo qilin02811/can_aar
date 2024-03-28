@@ -20,6 +20,7 @@
 // 引入log头文件
 #include <android/log.h>
 #include <strings.h>
+#include <string.h>
 #include <sys/system_properties.h>
 // log标签
 #define  TAG    "CAN_Load_JNI"
@@ -34,7 +35,6 @@
 //#define AF_CAN PF_CAN
 #define true 1
 #define false 0
-struct ifreq ifr;
 #define SIOCSCANBAUDRATE        (SIOCDEVPRIVATE+0)
 
 #define SIOCGCANBAUDRATE        (SIOCDEVPRIVATE+1)
@@ -48,6 +48,7 @@ typedef __u32 can_baudrate_t; // can 波特率
 static int sock = -1;
 struct sockaddr_can addr;
 struct ifreq ifr;
+struct ifreq ifr_tmp;
 void my_strcpy(char *dest, char *src, size_t n)
 {
 	char i = 0;
@@ -105,7 +106,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz) {
 	if(sock == -1)
 	{
 		LOGE("Can Write Without Open");
-		return   0;
+		return 0;
 	}
 	struct sockaddr_can addr_t;
     addr_t.can_family = AF_CAN;
@@ -116,7 +117,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz) {
 
     bind(sock, (struct sockaddr *)&addr_t, sizeof(addr_t));
 	LOGD("Can open, socket fd == %d", sock);
-	return sock;
+    return sock;
 }
 
 /*
@@ -126,55 +127,27 @@ Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz) {
  */
 JNIEXPORT jobject JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz, jint time, jboolean extend) {
-	unsigned long nbytes,len;
-
-	struct can_frame frame = {0};
-	int k=0;
-	jstring jstr;
-
 	char temp[16];
-
-	fd_set rfds;
-	int retval; //返回值
-	struct timeval tv;
-    tv.tv_sec = time;
-    tv.tv_usec = 0;
-
 	bzero(temp,16);
+	struct can_frame frame;
+	socklen_t len = sizeof(addr);
+	unsigned long nbytes = recvfrom(sock, &frame, sizeof (struct can_frame), 0, (struct sockaddr *)&addr, &len);
 
-	if (sock == -1) {
-		LOGE("Can Read Without Open");
-		frame.can_id=0;
-		frame.can_dlc=0;
-	} else {
-		FD_ZERO(&rfds);
-		FD_SET(sock, &rfds);
-		retval = select(sock+1 , &rfds, NULL, NULL, &tv);//使用select函数进行套接字监听的操作，超时事件为tv
-		//retval 表示在指定时间内发生事件的文件描述符的数量，如果retval = 0，表示超时，如果retval = -1，表示发生错误，否则表示发生事件的文件描述符数量
-
-		if(retval == -1) {
-			LOGE("Can Read select error");
-			frame.can_dlc=0;  // 数据场长度
-			frame.can_id=0;
-		} else if (retval) {
-			nbytes = recvfrom(sock, &frame, sizeof(struct can_frame), 0, (struct sockaddr *)&addr, &len);
-
-//            LOGD("ID=0x%X DLC=%d Data: ", frame.can_id, frame.can_dlc);
-			for(k = 0;k < frame.can_dlc;k++) {
-				temp[k] = frame.data[k];
-//				LOGD("0x%02X ", frame.data[k]);
-			}
-//			temp[k] = 0;
-			//frame.can_id = frame.can_id - 0x80000000;//读得的id比实际的有个80000000差值，这里需要处理一下
-//			LOGD("Can Read slect success.");
-		} else {
-			frame.can_dlc=0;
-			frame.can_id=0;
-//			LOGD("Can no data and time out, socket fd == %d", sock);
-		}
+	for(int i = 0;i < frame.can_dlc;i ++)
+	{
+		temp[i] = frame.data[i];
 	}
 
+	ifr.ifr_ifindex = addr.can_ifindex;
+	ioctl(sock,SIOCGIFNAME,&ifr);
+
+	char can_temp[16];
+	bzero(can_temp,16);
+	LOGD("Received a CAN frame from interface %s", ifr.ifr_name);
+	strcpy(can_temp, ifr.ifr_name);
+
 	jclass canClass = (*env)->FindClass(env,"com/example/x6/mc_cantest/CanFrame"); // 获取Java类的引用
+	jfieldID idCanPort = (*env)->GetFieldID(env, canClass,"canPort", "Ljava/lang/String;");//获取canPort在Java虚拟机中的引用
     jfieldID idCan = (*env)->GetFieldID(env, canClass,"canId","I"); //获取canId在Java虚拟机中的引用
 	jfieldID idExtend = (*env)->GetFieldID(env, canClass, "idExtend", "Z"); //获取idExtend在Java虚拟机中的引用
 	jfieldID idLen = (*env)->GetFieldID(env, canClass,"len","I"); //获取len在Java虚拟机中的引用
@@ -183,13 +156,14 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
     jmethodID constructMID = (*env)->GetMethodID(env, canClass, "<init>", "()V"); //获取init方法在Java虚拟机中的引用
 	jobject canFrame = (*env)->NewObject(env, canClass, constructMID); // NewObject通过构造方法创建新的canFrame对象
 
+	jstring port = (*env)->NewStringUTF(env, can_temp);
     jbyteArray dataArray = (*env)->NewByteArray(env, frame.can_dlc); // 创建一个新的字节数组对象
     (*env)->SetByteArrayRegion(env, dataArray, 0, frame.can_dlc, (jbyte *)temp); //数组temp的内容复制到Java字节数组dataArray中，从位置0开始，复制长度为frame.can_dlc的字节
-
 	(*env)->SetBooleanField(env, canFrame, idExtend, extend); //设置canFrame的idExtend字段值
     (*env)->SetIntField(env, canFrame, idCan, frame.can_id + (extend ? (0x01 << 31) : 0)); //设置canFrame的idCan字段值，如果extend有值则将idCan的二进制最高位设置为1
     (*env)->SetIntField(env, canFrame, idLen, frame.can_dlc); // 设置canFrame的idLen值，即数据长度
     (*env)->SetObjectField(env, canFrame, idData, dataArray); // 设置canFrame的idData字段
+	(*env)->SetObjectField(env, canFrame, idCanPort, port);
 	return canFrame;
 	//返回使用JNI封装的canFrame对象，以提供给Java层使用
 }
@@ -228,7 +202,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
     int r = ioctl(sock,SIOCGIFINDEX,&ifr);
     // 这里调用ioctl使得sock获取到ifr的接口索引，
     // 但如果设备没有对应设置的can口则无法获取到，所以应该设置返回值r，r = 0说明获取到，r = -1说明获取失败。
-    // LOGD("r = %d",r);
+	LOGD("r = %d",r);
 
     //这里对未存在的can口需要返回-1，避免通过canOpen方法初始化的sock在总线上传递数据
     if(r == -1)
