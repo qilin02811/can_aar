@@ -2,6 +2,7 @@ package com.example.x6.mc_cantest;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.List;
 
 
 public class CanUtils {
@@ -56,6 +57,8 @@ public class CanUtils {
     public native int canOpen();
     public native CanFrame canReadBytes(int time, boolean idExtend);
     public native int canWriteBytes(CanFrame canFrame, String can);
+
+    public native int canSetFilters(List<CanFilter> canFilters);
     public native int canClose();
 
     static {

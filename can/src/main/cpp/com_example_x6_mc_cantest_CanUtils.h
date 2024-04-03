@@ -40,7 +40,11 @@ JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes
 JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canClose
   (JNIEnv *, jobject);
 
+JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canSetFilters
+  (JNIEnv *, jobject , jobject canFilters);
+
 #ifdef __cplusplus
 }
 #endif
 #endif
+

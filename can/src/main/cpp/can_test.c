@@ -58,8 +58,6 @@ void my_strcpy(char *dest, char *src, size_t n)
 		i++;
 	}
 }
-
-
 /*
 JNIEXPORT  void JNICALL Java_com_example_x6_mc_1cantest_CanUtils_InitCan
   (JNIEnv *env, jobject thiz, jint baudrate)
@@ -136,6 +134,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
 	for(int i = 0;i < frame.can_dlc;i ++)
 	{
 		temp[i] = frame.data[i];
+//		LOGD("temp[i] = " , temp[i]);
 	}
 
 	ifr.ifr_ifindex = addr.can_ifindex;
@@ -143,24 +142,24 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
 
 	char can_temp[16];
 	bzero(can_temp,16);
-	LOGD("Received a CAN frame from interface %s", ifr.ifr_name);
 	strcpy(can_temp, ifr.ifr_name);
 
+//    LOGE("read frame.canid = %u",frame.can_id);
+
 	jclass canClass = (*env)->FindClass(env,"com/example/x6/mc_cantest/CanFrame"); // 获取Java类的引用
-	jfieldID idCanPort = (*env)->GetFieldID(env, canClass,"canPort", "Ljava/lang/String;");//获取canPort在Java虚拟机中的引用
-    jfieldID idCan = (*env)->GetFieldID(env, canClass,"canId","I"); //获取canId在Java虚拟机中的引用
+    jfieldID idCan = (*env)->GetFieldID(env, canClass,"canId", "J"); //获取canId在Java虚拟机中的引用
 	jfieldID idExtend = (*env)->GetFieldID(env, canClass, "idExtend", "Z"); //获取idExtend在Java虚拟机中的引用
 	jfieldID idLen = (*env)->GetFieldID(env, canClass,"len","I"); //获取len在Java虚拟机中的引用
     jfieldID idData = (*env)->GetFieldID(env, canClass,"data","[B"); // 获取data在Java虚拟机中的引用
-
+	jfieldID idCanPort = (*env)->GetFieldID(env, canClass,"canPort", "Ljava/lang/String;");//获取canPort在Java虚拟机中的引用
     jmethodID constructMID = (*env)->GetMethodID(env, canClass, "<init>", "()V"); //获取init方法在Java虚拟机中的引用
 	jobject canFrame = (*env)->NewObject(env, canClass, constructMID); // NewObject通过构造方法创建新的canFrame对象
-
-	jstring port = (*env)->NewStringUTF(env, can_temp);
+	jstring port = (*env)->NewStringUTF(env, ifr.ifr_name);
     jbyteArray dataArray = (*env)->NewByteArray(env, frame.can_dlc); // 创建一个新的字节数组对象
+
     (*env)->SetByteArrayRegion(env, dataArray, 0, frame.can_dlc, (jbyte *)temp); //数组temp的内容复制到Java字节数组dataArray中，从位置0开始，复制长度为frame.can_dlc的字节
 	(*env)->SetBooleanField(env, canFrame, idExtend, extend); //设置canFrame的idExtend字段值
-    (*env)->SetIntField(env, canFrame, idCan, frame.can_id + (extend ? (0x01 << 31) : 0)); //设置canFrame的idCan字段值，如果extend有值则将idCan的二进制最高位设置为1
+    (*env)->SetLongField(env, canFrame, idCan, frame.can_id + (extend ? (0x01 << 31) : 0)); //设置canFrame的idCan字段值，如果extend有值则将idCan的二进制最高位设置为1
     (*env)->SetIntField(env, canFrame, idLen, frame.can_dlc); // 设置canFrame的idLen值，即数据长度
     (*env)->SetObjectField(env, canFrame, idData, dataArray); // 设置canFrame的idData字段
 	(*env)->SetObjectField(env, canFrame, idCanPort, port);
@@ -182,12 +181,12 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 
 	//jfiedId是指针，用于访问和操作java类的字段
 	jclass canCls  = (*env)->GetObjectClass(env, obj_can);
-    jfieldID idCan = (*env)->GetFieldID(env, canCls, "canId", "I");
+    jfieldID idCan = (*env)->GetFieldID(env, canCls, "canId", "J");
     jfieldID idExtend = (*env)->GetFieldID(env, canCls, "idExtend", "Z");
     jfieldID idLen = (*env)->GetFieldID(env, canCls,"len", "I");
     jfieldID idData = (*env)->GetFieldID(env, canCls, "data", "[B");
 
-    jint canId = (*env)->GetIntField(env, obj_can, idCan); //获取idCan所指向的数据赋值给canId
+    jint canId = (*env)->GetLongField(env, obj_can, idCan); //获取idCan所指向的数据赋值给canId
     jboolean extend = (*env)->GetBooleanField(env, obj_can, idExtend); //获取idExtend所指向的数据赋值给extend
     jint len = (*env)->GetIntField(env, obj_can, idLen); //获取idLen所指向的数据赋值给len
     jbyteArray data = (jbyteArray)(*env)->GetObjectField(env, obj_can, idData); // 获取idData所指向的数据赋值给data
@@ -195,9 +194,8 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
 	jboolean iscopy;
 	jbyte *send_data = (*env)->GetByteArrayElements(env, data, &iscopy); //获取Java字节数组data的元素，拷贝到send_data指向的内存位置上，转换为C/C++的字节数组
 	frame.can_id = canId + (extend ? (0x01 << 31) : 0);
-
     const char *get_can = (*env)->GetStringUTFChars(env, can, 0);
-//    LOGD("write can is %s", get_can);
+
     strcpy((char *)(ifr.ifr_name), get_can);
     int r = ioctl(sock,SIOCGIFINDEX,&ifr);
     // 这里调用ioctl使得sock获取到ifr的接口索引，
@@ -270,6 +268,44 @@ Java_com_example_x6_mc_1cantest_CanUtils_canClose(JNIEnv *env, jobject thiz){
 }
 
 
+#include <jni.h>
+
+JNIEXPORT jint JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_canSetFilters(JNIEnv* env, jobject thiz, jobject canFilters) {
+	// 获取 List<CanFilter> 类的信息
+	jclass listClass = (*env)->GetObjectClass(env, canFilters);
+	jmethodID getMethod = (*env)->GetMethodID(env, listClass, "get", "(I)Ljava/lang/Object;");
+	jmethodID sizeMethod = (*env)->GetMethodID(env, listClass, "size", "()I");
+	jint length = (*env)->CallIntMethod(env, canFilters, sizeMethod);
+	struct can_filter filters[length];
+
+	// 遍历 List<CanFilter>
+	for (jint i = 0; i < length; ++i) {
+		// 获取 CanFilter 对象
+		jobject canFilter = (*env)->CallObjectMethod(env, canFilters, getMethod, i);
+
+		// 获取 CanFilter 类
+		jclass canFilterClass = (*env)->GetObjectClass(env, canFilter);
+
+		// 获取 CanFilter 的属性值（例如 can_id 和 can_mask）
+		jfieldID canIdField = (*env)->GetFieldID(env, canFilterClass, "can_id", "J");
+		jint canId = (*env)->GetLongField(env, canFilter, canIdField);
+
+		jfieldID canMaskField = (*env)->GetFieldID(env, canFilterClass, "can_mask", "J");
+		jint canMask = (*env)->GetLongField(env, canFilter, canMaskField);
+
+		filters[i].can_id = canId;
+		filters[i].can_mask =  canMask;
+		LOGE("canId = %u, canMask = %x", filters[i].can_id, filters[i].can_mask);
+
+		int res = setsockopt(sock,SOL_CAN_RAW,CAN_RAW_FILTER,&filters,sizeof(filters));
+		if(res != 0) return -1;
+		// 释放局部引用
+		(*env)->DeleteLocalRef(env, canFilter);
+	}
+	// 返回结果
+	return 0;
+}
 
 
 

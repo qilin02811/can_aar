@@ -3,7 +3,7 @@ package com.example.x6.mc_cantest;
 import java.util.Arrays;
 
 public class CanFrame {
-    public int canId;
+    public long canId;
     public boolean idExtend = false;
     public int len;
     public byte[] data;
@@ -15,7 +15,7 @@ public class CanFrame {
                 "canId=" + canId +
                 ", idExtend=" + idExtend +
                 ", len=" + len +
-                ", data=" + Arrays.toString(data) +
+                ", data=" + bytesToHexString(data,data.length) +
                 ", canPort='" + canPort + '\'' +
                 '}';
     }
