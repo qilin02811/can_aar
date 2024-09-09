@@ -56,6 +56,8 @@ public class CanUtils {
 
     public native int canOpen();
     public native CanFrame canReadBytes(int time, boolean idExtend);
+    public native void canWriteBytesDebug(CanFrame canFrame, String canPort);
+    public native void canReadBytesDebug(DataListener listener);
     public native int canWriteBytes(CanFrame canFrame, String can);
 
     public native int canSetFilters(List<CanFilter> canFilters);

@@ -24,6 +24,7 @@ JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canOpen
 JNIEXPORT jobject JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes
   (JNIEnv *, jobject, jint, jboolean);
 
+
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils
  * Method:    canWriteBytes
@@ -43,8 +44,17 @@ JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canClose
 JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canSetFilters
   (JNIEnv *, jobject , jobject canFilters);
 
+JNIEXPORT void JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_canReadBytesDebug(JNIEnv *env, jobject thiz, jobject listener);
+
+JNIEXPORT void JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytesDebug(JNIEnv *env, jobject thiz, jobject can_frame,
+                                                            jstring can_port);
+
 #ifdef __cplusplus
 }
 #endif
 #endif
+
+
 

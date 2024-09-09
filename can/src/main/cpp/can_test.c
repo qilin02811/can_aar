@@ -4,7 +4,7 @@
 #include <linux/sockios.h>
 #include <linux/if.h>
 #include <pthread.h>
-#include "can.h"
+#include <linux/can/raw.h>
 #include <stdlib.h>
 #include <termios.h>
 #include <unistd.h>
@@ -16,8 +16,9 @@
 #include <assert.h>
 #include <net/if.h>
 #include <sys/wait.h>
+#include <sys/epoll.h>
 #include "com_example_x6_mc_cantest_CanUtils.h"
-// 引入log头文件
+
 #include <android/log.h>
 #include <strings.h>
 #include <string.h>
@@ -30,25 +31,44 @@
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__)
 // 定义error信息
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
-//#define PF_CAN 29
-//
-//#define AF_CAN PF_CAN
 #define true 1
-#define false 0
-#define SIOCSCANBAUDRATE        (SIOCDEVPRIVATE+0)
 
-#define SIOCGCANBAUDRATE        (SIOCDEVPRIVATE+1)
 
 #define SOL_CAN_RAW (SOL_CAN_BASE + CAN_RAW)
 #define CAN_RAW_FILTER  1
-#define CAN_RAW_RECV_OWN_MSGS 0x4 
-
-typedef __u32 can_baudrate_t; // can 波特率
 
 static int sock = -1;
 struct sockaddr_can addr;
+
 struct ifreq ifr;
-struct ifreq ifr_tmp;
+int currmax = 3;
+#ifndef SO_TIMESTAMPING
+#define SO_TIMESTAMPING 37
+#endif
+
+#define MAXSOCK 16    /* max. number of CAN interfaces given on the cmdline */
+#define MAXIFNAMES 30 /* size of receive name index to omit ioctls */
+#define ANYDEV "any"  /* name of interface to receive from any CAN interface */
+
+
+struct if_info { /* bundled information per open socket */
+    int s; /* socket */
+    char *cmdlinename;// CAN口名称
+    __u32 dropcnt; //
+    __u32 last_dropcnt;//
+};
+
+static struct if_info sock_info[MAXSOCK];
+static char devname[MAXIFNAMES][IFNAMSIZ+1];
+static int dindex[MAXIFNAMES];
+static int max_devname_len; /* to prevent frazzled device name output */
+static const int canfd_on = 1;
+char buf[255];
+static int frame_count = 0;
+static volatile int running = 1;
+int fd_epoll;
+static int s;
+
 void my_strcpy(char *dest, char *src, size_t n)
 {
 	char i = 0;
@@ -58,64 +78,10 @@ void my_strcpy(char *dest, char *src, size_t n)
 		i++;
 	}
 }
-/*
-JNIEXPORT  void JNICALL Java_com_example_x6_mc_1cantest_CanUtils_InitCan
-  (JNIEnv *env, jobject thiz, jint baudrate)
-{
-
-
-	switch (baudrate)
-	{
-		case 5000   :
-		case 10000  :
-		case 20000  :
-		case 50000  :
-		case 100000 :
-		case 125000 :
-		case 500000 :
-		case 1000000:
-			LOGI("Can Bus Speed is %d",baudrate);
-		break;
-		default:
-			LOGI("Can Bus Speed is %d.if it do not work,try 5000~1000000",baudrate);
-	}
-
-
-	if(baudrate!=0)
-	{
-		char str_baudrate[16];
-
-		sprintf(str_baudrate,"%d", baudrate);
-		property_set("net.can.baudrate", str_baudrate);
-		LOGI("str_baudrate is:%s", str_baudrate);
-		property_set("net.can.change", "yes");
-	}
-
-	sleep(2);//wait for can0 up
-}
-*/
-
 
 JNIEXPORT jint JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz) {
-	int ret;
-	/* Opening device */
-	sock = socket(PF_CAN,SOCK_RAW,CAN_RAW);
-	if(sock == -1)
-	{
-		LOGE("Can Write Without Open");
-		return 0;
-	}
-	struct sockaddr_can addr_t;
-    addr_t.can_family = AF_CAN;
-    addr_t.can_ifindex = 0; // 关键点, 接口索引为0！！！
-    // 将can_ifindex字段设置为0表示使用默认的网络接口。
-    // 默认的网络接口通常是指连接在主机上的第一个CAN总线。系统会自动分配网络接口索引给每个CAN总线，
-    // 因此将can_ifindex设置为0就可以使用默认的网络接口。如果有多个CAN总线连接在主机上，可以使用不同的网络接口索引来区分它们。
 
-    bind(sock, (struct sockaddr *)&addr_t, sizeof(addr_t));
-	LOGD("Can open, socket fd == %d", sock);
-    return sock;
 }
 
 /*
@@ -150,12 +116,12 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz,
     jfieldID idCan = (*env)->GetFieldID(env, canClass,"canId", "J"); //获取canId在Java虚拟机中的引用
 	jfieldID idExtend = (*env)->GetFieldID(env, canClass, "idExtend", "Z"); //获取idExtend在Java虚拟机中的引用
 	jfieldID idLen = (*env)->GetFieldID(env, canClass,"len","I"); //获取len在Java虚拟机中的引用
-    jfieldID idData = (*env)->GetFieldID(env, canClass,"data","[B"); // 获取data在Java虚拟机中的引用
+    jfieldID idData = (*env)->GetFieldID(env, canClass,"data","[C"); // 获取data在Java虚拟机中的引用
 	jfieldID idCanPort = (*env)->GetFieldID(env, canClass,"canPort", "Ljava/lang/String;");//获取canPort在Java虚拟机中的引用
     jmethodID constructMID = (*env)->GetMethodID(env, canClass, "<init>", "()V"); //获取init方法在Java虚拟机中的引用
 	jobject canFrame = (*env)->NewObject(env, canClass, constructMID); // NewObject通过构造方法创建新的canFrame对象
 	jstring port = (*env)->NewStringUTF(env, ifr.ifr_name);
-    jbyteArray dataArray = (*env)->NewByteArray(env, frame.can_dlc); // 创建一个新的字节数组对象
+    jcharArray dataArray = (*env)->NewCharArray(env, frame.can_dlc); // 创建一个新的字节数组对象
 
     (*env)->SetByteArrayRegion(env, dataArray, 0, frame.can_dlc, (jbyte *)temp); //数组temp的内容复制到Java字节数组dataArray中，从位置0开始，复制长度为frame.can_dlc的字节
 	(*env)->SetBooleanField(env, canFrame, idExtend, extend); //设置canFrame的idExtend字段值
@@ -184,7 +150,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz
     jfieldID idCan = (*env)->GetFieldID(env, canCls, "canId", "J");
     jfieldID idExtend = (*env)->GetFieldID(env, canCls, "idExtend", "Z");
     jfieldID idLen = (*env)->GetFieldID(env, canCls,"len", "I");
-    jfieldID idData = (*env)->GetFieldID(env, canCls, "data", "[B");
+    jfieldID idData = (*env)->GetFieldID(env, canCls, "data", "[C");
 
     jint canId = (*env)->GetLongField(env, obj_can, idCan); //获取idCan所指向的数据赋值给canId
     jboolean extend = (*env)->GetBooleanField(env, obj_can, idExtend); //获取idExtend所指向的数据赋值给extend
@@ -261,8 +227,13 @@ Java_com_example_x6_mc_1cantest_CanUtils_canClose(JNIEnv *env, jobject thiz){
 	if (sock != -1) {
 		close(sock); //关闭套接字
 	}
+	for (int i = 0; i < currmax; i++)
+		close(sock_info[i].s);
+	close(fd_epoll);
 
+	frame_count = 0;
 	sock = -1;
+	close(s);
 	LOGD("Can close");
 	return true;
 }
@@ -307,6 +278,535 @@ Java_com_example_x6_mc_1cantest_CanUtils_canSetFilters(JNIEnv* env, jobject thiz
 	return 0;
 }
 
+/******************************************************************************************************************/
+//canWriteBytesDebug
+#define CANID_DELIM '#'
+#define CC_DLC_DELIM '_'
+#define DATA_SEPERATOR '.'
 
 
+unsigned char asc2nibble(char c) {
+
+	if ((c >= '0') && (c <= '9'))
+		return c - '0';
+
+	if ((c >= 'A') && (c <= 'F'))
+		return c - 'A' + 10;
+
+	if ((c >= 'a') && (c <= 'f'))
+		return c - 'a' + 10;
+
+	return 16; /* error */
+}
+
+int parse_canframe(char *cs, struct canfd_frame *cf) {
+	/* documentation see lib.h */
+
+	int i, idx, dlen, len;
+	int maxdlen = CAN_MAX_DLEN;
+	int ret = CAN_MTU;
+	canid_t tmp;
+
+	len = strlen(cs);
+	//printf("'%s' len %d\n", cs, len);
+
+	memset(cf, 0, sizeof(*cf)); /* init CAN FD frame, e.g. LEN = 0 */
+
+	if (len < 4)
+		return 0;
+
+	if (cs[3] == CANID_DELIM) { /* 3 digits */
+
+		idx = 4;
+		for (i=0; i<3; i++){
+			if ((tmp = asc2nibble(cs[i])) > 0x0F)
+				return 0;
+			cf->can_id |= (tmp << (2-i)*4);
+		}
+
+	} else if (cs[8] == CANID_DELIM) { /* 8 digits */
+
+		idx = 9;
+		for (i=0; i<8; i++){
+			if ((tmp = asc2nibble(cs[i])) > 0x0F)
+				return 0;
+			cf->can_id |= (tmp << (7-i)*4);
+		}
+		if (!(cf->can_id & CAN_ERR_FLAG)) /* 8 digits but no errorframe?  */
+			cf->can_id |= CAN_EFF_FLAG;   /* then it is an extended frame */
+
+	} else
+		return 0;
+
+
+	if (cs[idx] == CANID_DELIM) { /* CAN FD frame escape char '##' */
+
+		maxdlen = CANFD_MAX_DLEN;
+		ret = CANFD_MTU;
+
+		/* CAN FD frame <canid>##<flags><data>* */
+		if ((tmp = asc2nibble(cs[idx+1])) > 0x0F)
+			return 0;
+
+		cf->flags = tmp;
+		idx += 2;
+	}
+	for (i=0, dlen=0; i < maxdlen; i++){
+
+		if(cs[idx] == DATA_SEPERATOR) /* skip (optional) separator */
+			idx++;
+
+		if(idx >= len) /* end of string => end of data */
+			break;
+
+		if ((tmp = asc2nibble(cs[idx++])) > 0x0F)
+			return 0;
+		cf->data[i] = (tmp << 4);
+		if ((tmp = asc2nibble(cs[idx++])) > 0x0F)
+			return 0;
+		cf->data[i] |= tmp;
+		dlen++;
+	}
+	cf->len = dlen;
+
+	/* check for extra DLC when having a Classic CAN with 8 bytes payload */
+//	if ((maxdlen == CAN_MAX_DLEN) && (dlen == CAN_MAX_DLEN) && (cs[idx++] == CC_DLC_DELIM)) {
+//		unsigned char dlc = asc2nibble(cs[idx]);
+//
+//		if ((dlc > CAN_MAX_DLEN) && (dlc <= CAN_MAX_RAW_DLC)) {
+//			struct can_frame *ccf = (struct can_frame *)cf;
+//
+//			ccf->len8_dlc = dlc;
+//		}
+//	}
+
+	return ret;
+}
+
+static const unsigned char dlc2len[] = {0, 1, 2, 3, 4, 5, 6, 7,
+										8, 12, 16, 20, 24, 32, 48, 64};
+
+/* get data length from raw data length code (DLC) */
+unsigned char can_fd_dlc2len(unsigned char dlc)
+{
+	return dlc2len[dlc & 0x0F];
+}
+static const unsigned char len2dlc[] = {0, 1, 2, 3, 4, 5, 6, 7, 8,              /* 0 - 8 */
+										9, 9, 9, 9,                             /* 9 - 12 */
+										10, 10, 10, 10,                         /* 13 - 16 */
+										11, 11, 11, 11,                         /* 17 - 20 */
+										12, 12, 12, 12,                         /* 21 - 24 */
+										13, 13, 13, 13, 13, 13, 13, 13,         /* 25 - 32 */
+										14, 14, 14, 14, 14, 14, 14, 14,         /* 33 - 40 */
+										14, 14, 14, 14, 14, 14, 14, 14,         /* 41 - 48 */
+										15, 15, 15, 15, 15, 15, 15, 15,         /* 49 - 56 */
+										15, 15, 15, 15, 15, 15, 15, 15};        /* 57 - 64 */
+
+unsigned char can_fd_len2dlc(unsigned char len)
+{
+	if (len > 64)
+		return 0xF;
+
+	return len2dlc[len];
+}
+
+
+
+JNIEXPORT void JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytesDebug(JNIEnv *env, jobject thiz, jobject can_frame,
+															jstring can_port){
+	int required_mtu;
+	int num = 0, i = 0;
+	int enable_canfd = 1;
+	struct canfd_frame frame;
+	struct sockaddr_can addr;
+	struct ifreq ifr;
+
+	//jfiedId是指针，用于访问和操作java类的字段
+	jclass canCls  = (*env)->GetObjectClass(env, can_frame);
+	jfieldID idCan = (*env)->GetFieldID(env, canCls, "canId", "J");
+	jfieldID idExtend = (*env)->GetFieldID(env, canCls, "idExtend", "Z");
+	jfieldID idLen = (*env)->GetFieldID(env, canCls,"len", "I");
+	jfieldID idData = (*env)->GetFieldID(env, canCls, "data", "Ljava/lang/String;");
+
+
+	jint canId = (*env)->GetLongField(env, can_frame, idCan); //获取idCan所指向的数据赋值给canId
+	jstring data = (*env)->GetObjectField(env, can_frame, idData); // 获取idData所指向的数据赋值给data
+
+	char *final_data = (*env)->GetStringUTFChars(env, data, NULL);
+	const char *port = (*env)->GetStringUTFChars(env, can_port, NULL);
+	char result[64];
+	snprintf(result,sizeof(result),"%d#%s", canId, final_data);
+//	LOGE("result = %s",result);
+	required_mtu = parse_canframe(result, &frame);
+
+    if (!required_mtu){
+        fprintf(stderr, "\nWrong CAN-frame format!\n\n");
+        LOGE("error in format");
+        return ;
+    }
+
+    if((s = socket(PF_CAN, SOCK_RAW, CAN_RAW)) < 0){
+		LOGE("error in socket");
+		return ;
+	}
+
+	strncpy(ifr.ifr_name, port, IFNAMSIZ - 1);
+	ifr.ifr_name[IFNAMSIZ - 1] = '\0';
+
+	if(ioctl(s,SIOGIFINDEX,&ifr) == -1){
+		LOGD("ioctl failed");
+		return ;
+	}
+//	LOGE("ifr.ifr_ifindex = %d\n",ifr.ifr_ifindex);
+
+	memset(&addr, 0, sizeof(addr));
+	addr.can_family = AF_CAN;
+	addr.can_ifindex = ifr.ifr_ifindex;
+
+	setsockopt(s, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0);
+	if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		LOGE("bind error\n");
+		return ;
+	}
+
+	LOGE("s = %d",s);
+	if (write(s, &frame, required_mtu) != required_mtu) {
+		LOGE("write socket %d error\n",s);
+		return ;
+	}
+	close(s);
+	(*env)->ReleaseStringUTFChars(env, data, final_data);
+	(*env)->ReleaseStringUTFChars(env, can_port, port);
+}
+
+/***********************************************************************************************************************/
+//以下是CanReadBytesDebug的逻辑：
+
+const char hex_asc_upper[] = "0123456789ABCDEF";
+
+#define hex_asc_upper_lo(x)	hex_asc_upper[((x) & 0x0F)]
+#define hex_asc_upper_hi(x)	hex_asc_upper[((x) & 0xF0) >> 4]
+
+static inline void put_hex_byte(char *buf, __u8 byte)
+{
+	buf[0] = hex_asc_upper_hi(byte);
+	buf[1] = hex_asc_upper_lo(byte);
+}
+
+static inline void _put_id(char *buf, int end_offset, canid_t id)
+{
+	/* build 3 (SFF) or 8 (EFF) digit CAN identifier */
+	while (end_offset >= 0) {
+		buf[end_offset--] = hex_asc_upper_lo(id);
+		id >>= 4;
+	}
+}
+
+#define put_sff_id(buf, id) _put_id(buf, 2, id)
+#define put_eff_id(buf, id) _put_id(buf, 7, id)
+#define CANLIB_VIEW_INDENT_SFF	0x10
+#define CANLIB_VIEW_LEN8_DLC	0x20
+#define CANLIB_VIEW_BINARY	0x2
+#define CANLIB_VIEW_SWAP	0x4
+#define SWAP_DELIMITER '`'
+#define CANLIB_VIEW_ASCII	0x1
+
+void sprint_long_canframe(char *buf , struct canfd_frame *cf, int view, int maxdlen) {
+	/* documentation see lib.h */
+	int i, j, dlen, offset;
+	int len = (cf->len > maxdlen)? maxdlen : cf->len;
+
+	/* initialize space for CAN-ID and length information */
+	memset(buf, ' ', 15);
+
+	if (cf->can_id & CAN_ERR_FLAG) {
+		put_eff_id(buf, cf->can_id & (CAN_ERR_MASK|CAN_ERR_FLAG));
+		offset = 10;
+	} else if (cf->can_id & CAN_EFF_FLAG) {
+		put_eff_id(buf, cf->can_id & CAN_EFF_MASK);
+		offset = 10;
+	} else {
+		if (view & CANLIB_VIEW_INDENT_SFF) {
+			put_sff_id(buf + 5, cf->can_id & CAN_SFF_MASK);
+			offset = 10;
+		} else {
+			put_sff_id(buf, cf->can_id & CAN_SFF_MASK);
+			offset = 5;
+		}
+	}
+
+	/* The len value is sanitized by maxdlen (see above) */
+	if (maxdlen == CAN_MAX_DLEN) {
+		if (view & CANLIB_VIEW_LEN8_DLC) {
+
+		} else {
+			buf[offset + 1] = '[';
+			buf[offset + 2] = len + '0';
+			buf[offset + 3] = ']';
+		}
+
+		/* standard CAN frames may have RTR enabled */
+		if (cf->can_id & CAN_RTR_FLAG) {
+			sprintf(buf+offset+5, " remote request");
+			return;
+		}
+	} else {
+		buf[offset] = '[';
+		buf[offset + 1] = (len/10) + '0';
+		buf[offset + 2] = (len%10) + '0';
+		buf[offset + 3] = ']';
+	}
+	offset += 5;
+
+	if (view & CANLIB_VIEW_BINARY) {
+		dlen = 9; /* _10101010 */
+		if (view & CANLIB_VIEW_SWAP) {
+			for (i = len - 1; i >= 0; i--) {
+				buf[offset++] = (i == len-1)?' ':SWAP_DELIMITER;
+				for (j = 7; j >= 0; j--)
+					buf[offset++] = (1<<j & cf->data[i])?'1':'0';
+			}
+		} else {
+			for (i = 0; i < len; i++) {
+				buf[offset++] = ' ';
+				for (j = 7; j >= 0; j--)
+					buf[offset++] = (1<<j & cf->data[i])?'1':'0';
+			}
+		}
+	} else {
+		dlen = 3; /* _AA */
+		if (view & CANLIB_VIEW_SWAP) {
+			for (i = len - 1; i >= 0; i--) {
+				if (i == len-1)
+					buf[offset++] = ' ';
+				else
+					buf[offset++] = SWAP_DELIMITER;
+
+				put_hex_byte(buf + offset, cf->data[i]);
+				offset += 2;
+			}
+		} else {
+			for (i = 0; i < len; i++) {
+				buf[offset++] = ' ';
+				put_hex_byte(buf + offset, cf->data[i]);
+				offset += 2;
+			}
+		}
+	}
+
+	buf[offset] = 0; /* terminate string */
+	/*
+	 * The ASCII & ERRORFRAME output is put at a fixed len behind the data.
+	 * For now we support ASCII output only for payload length up to 8 bytes.
+	 * Does it make sense to write 64 ASCII byte behind 64 ASCII HEX data on the console?
+	 */
+	if (len > CAN_MAX_DLEN)
+		return;
+
+	if (cf->can_id & CAN_ERR_FLAG)
+		sprintf(buf+offset, "%*s", dlen*(8-len)+13, "ERRORFRAME");
+	else if (view & CANLIB_VIEW_ASCII) {
+		j = dlen*(8-len)+4;
+		if (view & CANLIB_VIEW_SWAP) {
+			sprintf(buf+offset, "%*s", j, "`");
+			offset += j;
+			for (i = len - 1; i >= 0; i--)
+				if ((cf->data[i] > 0x1F) && (cf->data[i] < 0x7F))
+					buf[offset++] = cf->data[i];
+				else
+					buf[offset++] = '.';
+
+			sprintf(buf+offset, "`");
+		} else {
+			sprintf(buf+offset, "%*s", j, "'");
+			offset += j;
+			for (i = 0; i < len; i++)
+				if ((cf->data[i] > 0x1F) && (cf->data[i] < 0x7F))
+					buf[offset++] = cf->data[i];
+				else
+					buf[offset++] = '.';
+
+			sprintf(buf+offset, "'");
+		}
+	}
+}
+
+void fprint_long_canframe(FILE *stream , struct canfd_frame *cf, char *eol, int view, int maxdlen) {
+	/* documentation see lib.h */
+	memset(buf,0,sizeof(buf));
+	sprint_long_canframe(buf, cf, view, maxdlen);
+}
+
+static int idx2dindex(int ifidx, int socket)
+{
+
+	int i;
+	struct ifreq ifr;
+
+	for (i = 0; i < MAXIFNAMES; i++) {
+		if (dindex[i] == ifidx)
+			return i;
+	}
+
+	/* create new interface index cache entry */
+
+	/* remove index cache zombies first */
+	for (i = 0; i < MAXIFNAMES; i++) {
+		if (dindex[i]) {
+			ifr.ifr_ifindex = dindex[i];
+			if (ioctl(socket, SIOCGIFNAME, &ifr) < 0)
+				dindex[i] = 0;
+		}
+	}
+
+	for (i = 0; i < MAXIFNAMES; i++)
+		if (!dindex[i]) /* free entry */
+			break;
+
+	if (i == MAXIFNAMES) {
+		fprintf(stderr, "Interface index cache only supports %d interfaces.\n",
+				MAXIFNAMES);
+		exit(1);
+	}
+
+	dindex[i] = ifidx;
+
+	ifr.ifr_ifindex = ifidx;
+	if (ioctl(socket, SIOCGIFNAME, &ifr) < 0)
+		perror("SIOCGIFNAME");
+
+	if (max_devname_len < (int)strlen(ifr.ifr_name))
+		max_devname_len = strlen(ifr.ifr_name);
+
+	strcpy(devname[i], ifr.ifr_name);
+	printf("new index %d (%s)\n", i, devname[i]);
+	return i;
+}
+
+JNIEXPORT void JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_canReadBytesDebug(JNIEnv *env, jobject thiz, jobject listener) {
+	jclass callClass = (*env)->GetObjectClass(env,listener);
+	jmethodID callMethod = (*env)->GetMethodID(env,callClass,"onData",
+											   "(Ljava/lang/String;Ljava/lang/String;I)V");
+
+	struct epoll_event events_pending[MAXSOCK];
+	struct epoll_event event_setup = {
+			.events = EPOLLIN, /* prepare the common part */
+	};
+	unsigned char view = 0;
+	int  num_events;
+
+	char *ptr[3] = {"can0","can1","can2"};
+	struct sockaddr_can addr;
+	char ctrlmsg[CMSG_SPACE(sizeof(struct timeval)) +
+				 CMSG_SPACE(3 * sizeof(struct timespec)) +
+				 CMSG_SPACE(sizeof(__u32))];
+	struct iovec iov;
+	struct msghdr msg;
+	struct canfd_frame frame;
+	int nbytes, i, maxdlen;
+	struct ifreq ifr;
+	int timeout_ms = -1; /* default to no timeout */
+
+	fd_epoll = epoll_create(1);
+	if (fd_epoll < 0) {
+		perror("epoll_create");
+		return ;
+	}
+
+	for (i = 0; i < currmax; i++) {
+		struct if_info* obj = &sock_info[i];
+		obj->s = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+
+		if (obj->s < 0) {
+			LOGE("socket");
+			return ;
+		}
+
+		event_setup.data.ptr = obj; /* remember the instance as private data */
+		if (epoll_ctl(fd_epoll, EPOLL_CTL_ADD, obj->s, &event_setup)) {
+			LOGE("failed to add socket to epoll");
+			return ;
+		}
+
+		obj->cmdlinename = ptr[i]; /* save pointer to cmdline name of this socket */
+		nbytes = strlen(ptr[i]); /* no ',' found => no filter definitions */
+
+		if (nbytes > max_devname_len)
+			max_devname_len = nbytes; /* for nice printing */
+
+		addr.can_family = AF_CAN;
+
+		memset(&ifr.ifr_name, 0, sizeof(ifr.ifr_name));
+		strncpy(ifr.ifr_name, ptr[i], nbytes);
+
+		if (strcmp(ANYDEV, ifr.ifr_name) != 0) {
+			if (ioctl(obj->s, SIOCGIFINDEX, &ifr) < 0) {
+				perror("SIOCGIFINDEX");
+				exit(1);
+			}
+			addr.can_ifindex = ifr.ifr_ifindex;
+		} else
+			addr.can_ifindex = 0; /* any can interface */
+
+		/* try to switch the socket into CAN FD mode */
+		setsockopt(obj->s, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, &canfd_on, sizeof(canfd_on));
+
+		if (bind(obj->s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+			LOGE("bind");
+			return ;
+		}
+	}
+
+	/* these settings are static and can be held out of the hot path */
+	iov.iov_base = &frame;
+	msg.msg_name = &addr;
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = &ctrlmsg;
+
+	while (running) {
+		num_events = epoll_wait(fd_epoll, events_pending, currmax, timeout_ms);
+		if (num_events == -1) {
+				running = 0;
+			continue;
+		}
+        LOGE("num_events = %d",num_events);
+		for (i = 0; i < num_events; i++) {  /* check waiting CAN RAW sockets */
+			struct if_info* obj = events_pending[i].data.ptr;
+			/* these settings may be modified by recvmsg() */
+			iov.iov_len = sizeof(frame);
+			msg.msg_namelen = sizeof(addr);
+			msg.msg_controllen = sizeof(ctrlmsg);
+			msg.msg_flags = 0;
+
+			nbytes = recvmsg(obj->s, &msg, 0);
+
+			if (nbytes < 0) {
+				LOGE("nbytes < 0 is true\n");
+				return ;
+			}
+			if ((size_t)nbytes == CAN_MTU)
+				maxdlen = CAN_MAX_DLEN;
+			else if ((size_t)nbytes == CANFD_MTU)
+				maxdlen = CANFD_MAX_DLEN;
+			else {
+				LOGE("read: incomplete CAN frame\n");
+				return ;
+			}
+			int idx = idx2dindex(addr.can_ifindex,obj->s);
+//			LOGE("CAN口 = %s",devname[idx]);
+			frame_count ++;
+//			LOGE("收到帧数 = %d\n",frame_count);
+			fprint_long_canframe(stdout, &frame, NULL, view, maxdlen); //输出收到的can帧数据：canid can帧长度 can帧数据
+			jstring data = (*env)->NewStringUTF(env,buf);
+			jstring canPort = (*env)->NewStringUTF(env,devname[idx]);
+			(*env)->CallVoidMethod(env,listener,callMethod,data,canPort,frame_count);
+            (*env)->DeleteLocalRef(env,data);
+            (*env)->DeleteLocalRef(env,canPort);
+		}
+	}
+	(*env)->DeleteLocalRef(env,callClass);
+}
 

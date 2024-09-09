@@ -36,36 +36,36 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 byte[] data={0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x12, 0x22};
 
-                CanFrame canFrame = new CanFrame();
-                canFrame.canId = 4884;
-                canFrame.idExtend = idExtend;
-                canFrame.data = data;
-                canFrame.len = data.length;
-                int ret = canUtils.canWriteBytes(canFrame, "can0");
-                Log.d(TAG,"send over, ret == " + ret);
+//                CanFrame canFrame = new CanFrame();
+//                canFrame.canId = "4884".toCharArray();
+//                canFrame.idExtend = idExtend;
+//                canFrame.data = data;
+//                canFrame.len = data.length;
+//                int ret = canUtils.canWriteBytes(canFrame, "can0");
+//                Log.d(TAG,"send over, ret == " + ret);
             }
         });
         can_text.append("\n");
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (true) {
-                    mcanFrame = canUtils.canReadBytes(1, idExtend);
-                    if (mcanFrame != null && mcanFrame.data != null && mcanFrame.data.length > 0) {
-                        Log.i(TAG, "recv can == " + mcanFrame.toString());
-                        recvStr += mcanFrame.bytesToHexString(mcanFrame.data, mcanFrame.data.length) + "\n";
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                can_text.setText(recvStr);
-                            }
-                        });
-                    }
-
-                    SystemClock.sleep(100);
-                }
-            }
-        }).start();
+//        new Thread(new Runnable() {
+//            @Override
+//            public void run() {
+//                while (true) {
+//                    mcanFrame = canUtils.canReadBytes(1, idExtend);
+//                    if (mcanFrame != null && mcanFrame.data != null && mcanFrame.data.length > 0) {
+//                        Log.i(TAG, "recv can == " + mcanFrame.toString());
+////                        recvStr += mcanFrame.bytesToHexString(mcanFrame.data, mcanFrame.data.length) + "\n";
+//                        runOnUiThread(new Runnable() {
+//                            @Override
+//                            public void run() {
+//                                can_text.setText(recvStr);
+//                            }
+//                        });
+//                    }
+//
+//                    SystemClock.sleep(100);
+//                }
+//            }
+//        }).start();
     }
 }

@@ -6,7 +6,7 @@ public class CanFrame {
     public long canId;
     public boolean idExtend = false;
     public int len;
-    public byte[] data;
+    public String data;
     public String canPort;
 
     @Override
@@ -15,7 +15,7 @@ public class CanFrame {
                 "canId=" + canId +
                 ", idExtend=" + idExtend +
                 ", len=" + len +
-                ", data=" + bytesToHexString(data,data.length) +
+                ", data=" + data +
                 ", canPort='" + canPort + '\'' +
                 '}';
     }
