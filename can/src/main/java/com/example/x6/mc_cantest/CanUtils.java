@@ -49,19 +49,26 @@ public class CanUtils {
         return result;
     }
 
-    public void setCan(String can, String baudRate) {
-        execRootCmdSilent("ifconfig " + can + " down");
+    public void canOpen(String can, String baudRate) {
+        execRootCmdSilent("ifconfig can0 down");
+        execRootCmdSilent("ifconfig can1 down");
+        execRootCmdSilent("ifconfig can2 down");
         execRootCmdSilent("ip link set " + can + " up type can bitrate " + baudRate);
     }
 
-    public native int canOpen();
-    public native CanFrame canReadBytes(int time, boolean idExtend);
     public native void canWriteBytesDebug(CanFrame canFrame, String canPort);
     public native void canReadBytesDebug(DataListener listener);
-    public native int canWriteBytes(CanFrame canFrame, String can);
 
-    public native int canSetFilters(List<CanFilter> canFilters);
-    public native int canClose();
+    public native int canSetFilters(List<CanFilter> canFilters, String can);
+    public native int canClearFilters();
+    public void canClose() {
+        execRootCmdSilent("ifconfig can0 down");
+        execRootCmdSilent("ifconfig can1 down");
+        execRootCmdSilent("ifconfig can2 down");
+        doRealCanClose();
+    }
+
+    private native int doRealCanClose();
 
     static {
         System.loadLibrary("mc_can");

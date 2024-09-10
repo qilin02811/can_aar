@@ -7,8 +7,8 @@ public class CanFilter {
     @Override
     public String toString() {
         return "CanFilter{" +
-                "can_id=" + can_id +
-                ", can_mask=" + can_mask +
+                "can_id=" + Long.toHexString(can_id) +
+                ", can_mask=" + Long.toHexString(can_mask) +
                 '}';
     }
 

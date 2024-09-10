@@ -35,9 +35,7 @@
 
 
 #define SOL_CAN_RAW (SOL_CAN_BASE + CAN_RAW)
-#define CAN_RAW_FILTER  1
 
-static int sock = -1;
 struct sockaddr_can addr;
 
 struct ifreq ifr;
@@ -67,7 +65,7 @@ char buf[255];
 static int frame_count = 0;
 static volatile int running = 1;
 int fd_epoll;
-static int s;
+
 
 void my_strcpy(char *dest, char *src, size_t n)
 {
@@ -79,161 +77,29 @@ void my_strcpy(char *dest, char *src, size_t n)
 	}
 }
 
-JNIEXPORT jint JNICALL
-Java_com_example_x6_mc_1cantest_CanUtils_canOpen(JNIEnv *env, jobject thiz) {
-
-}
-
-/*
- * Class:     com_example_x6_mc_cantest_CanUtils
- * Method:    canreadBytes
- * Signature: (Ljava/io/FileDescriptor;[BI)I
- */
-JNIEXPORT jobject JNICALL
-Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes(JNIEnv *env, jobject thiz, jint time, jboolean extend) {
-	char temp[16];
-	bzero(temp,16);
-	struct can_frame frame;
-	socklen_t len = sizeof(addr);
-	unsigned long nbytes = recvfrom(sock, &frame, sizeof (struct can_frame), 0, (struct sockaddr *)&addr, &len);
-
-	for(int i = 0;i < frame.can_dlc;i ++)
-	{
-		temp[i] = frame.data[i];
-//		LOGD("temp[i] = " , temp[i]);
-	}
-
-	ifr.ifr_ifindex = addr.can_ifindex;
-	ioctl(sock,SIOCGIFNAME,&ifr);
-
-	char can_temp[16];
-	bzero(can_temp,16);
-	strcpy(can_temp, ifr.ifr_name);
-
-//    LOGE("read frame.canid = %u",frame.can_id);
-
-	jclass canClass = (*env)->FindClass(env,"com/example/x6/mc_cantest/CanFrame"); // 获取Java类的引用
-    jfieldID idCan = (*env)->GetFieldID(env, canClass,"canId", "J"); //获取canId在Java虚拟机中的引用
-	jfieldID idExtend = (*env)->GetFieldID(env, canClass, "idExtend", "Z"); //获取idExtend在Java虚拟机中的引用
-	jfieldID idLen = (*env)->GetFieldID(env, canClass,"len","I"); //获取len在Java虚拟机中的引用
-    jfieldID idData = (*env)->GetFieldID(env, canClass,"data","[C"); // 获取data在Java虚拟机中的引用
-	jfieldID idCanPort = (*env)->GetFieldID(env, canClass,"canPort", "Ljava/lang/String;");//获取canPort在Java虚拟机中的引用
-    jmethodID constructMID = (*env)->GetMethodID(env, canClass, "<init>", "()V"); //获取init方法在Java虚拟机中的引用
-	jobject canFrame = (*env)->NewObject(env, canClass, constructMID); // NewObject通过构造方法创建新的canFrame对象
-	jstring port = (*env)->NewStringUTF(env, ifr.ifr_name);
-    jcharArray dataArray = (*env)->NewCharArray(env, frame.can_dlc); // 创建一个新的字节数组对象
-
-    (*env)->SetByteArrayRegion(env, dataArray, 0, frame.can_dlc, (jbyte *)temp); //数组temp的内容复制到Java字节数组dataArray中，从位置0开始，复制长度为frame.can_dlc的字节
-	(*env)->SetBooleanField(env, canFrame, idExtend, extend); //设置canFrame的idExtend字段值
-    (*env)->SetLongField(env, canFrame, idCan, frame.can_id + (extend ? (0x01 << 31) : 0)); //设置canFrame的idCan字段值，如果extend有值则将idCan的二进制最高位设置为1
-    (*env)->SetIntField(env, canFrame, idLen, frame.can_dlc); // 设置canFrame的idLen值，即数据长度
-    (*env)->SetObjectField(env, canFrame, idData, dataArray); // 设置canFrame的idData字段
-	(*env)->SetObjectField(env, canFrame, idCanPort, port);
-	return canFrame;
-	//返回使用JNI封装的canFrame对象，以提供给Java层使用
-}
-
-/*
- * Class:     com_example_x6_mc_cantest_CanUtils
- * Method:    canwriteBytes
- * Signature: (Ljava/io/FileDescriptor;[BI)Z
-Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz, jint canId,jbyteArray data,jint len){
- */
-JNIEXPORT jint JNICALL
-Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes(JNIEnv *env, jobject thiz, jobject obj_can, jstring can) {
-	int nbytes;
-	int num = 0, i = 0;
-	struct can_frame frame;
-
-	//jfiedId是指针，用于访问和操作java类的字段
-	jclass canCls  = (*env)->GetObjectClass(env, obj_can);
-    jfieldID idCan = (*env)->GetFieldID(env, canCls, "canId", "J");
-    jfieldID idExtend = (*env)->GetFieldID(env, canCls, "idExtend", "Z");
-    jfieldID idLen = (*env)->GetFieldID(env, canCls,"len", "I");
-    jfieldID idData = (*env)->GetFieldID(env, canCls, "data", "[C");
-
-    jint canId = (*env)->GetLongField(env, obj_can, idCan); //获取idCan所指向的数据赋值给canId
-    jboolean extend = (*env)->GetBooleanField(env, obj_can, idExtend); //获取idExtend所指向的数据赋值给extend
-    jint len = (*env)->GetIntField(env, obj_can, idLen); //获取idLen所指向的数据赋值给len
-    jbyteArray data = (jbyteArray)(*env)->GetObjectField(env, obj_can, idData); // 获取idData所指向的数据赋值给data
-
-	jboolean iscopy;
-	jbyte *send_data = (*env)->GetByteArrayElements(env, data, &iscopy); //获取Java字节数组data的元素，拷贝到send_data指向的内存位置上，转换为C/C++的字节数组
-	frame.can_id = canId + (extend ? (0x01 << 31) : 0);
-    const char *get_can = (*env)->GetStringUTFChars(env, can, 0);
-
-    strcpy((char *)(ifr.ifr_name), get_can);
-    int r = ioctl(sock,SIOCGIFINDEX,&ifr);
-    // 这里调用ioctl使得sock获取到ifr的接口索引，
-    // 但如果设备没有对应设置的can口则无法获取到，所以应该设置返回值r，r = 0说明获取到，r = -1说明获取失败。
-	LOGD("r = %d",r);
-
-    //这里对未存在的can口需要返回-1，避免通过canOpen方法初始化的sock在总线上传递数据
-    if(r == -1)
-    {
-        return -1;
-    }
-
-	struct sockaddr_can write_addr;
-    write_addr.can_family = AF_CAN;
-    write_addr.can_ifindex = ifr.ifr_ifindex;
-//	LOGD("write_addr.can_ifindex = %d",ifr.ifr_ifindex);
-
-//	if(strlen(send_data) > 8)//用于支持当输入的字符大于8时的情况，分次数发送
-    if (len > 8){
-		//num = strlen(send_data) / 8;
-		num=len / 8; // 一次发8位
-        for(i = 0;i < num;i++){
-			my_strcpy((jbyte *)frame.data, &send_data[8 * i], 8);
-
-			frame.can_dlc = 8;
-			sendto(sock,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&write_addr,sizeof(addr));
-			//sendto 发送数据帧frame 到套接字sock，指定目标地址write_addr,sizeof(struct can_frame)表示数据帧的大小，sizeof(addr)表示要发送的数据的字节数
-		}
-
-		memset((jbyte *)frame.data, 0, 8);
-		my_strcpy((jbyte *)frame.data, &send_data[8 * i], len - num * 8);
-		//frame.can_dlc = strlen(send_data) - num * 8;
-        frame.can_dlc = len - num * 8;  //这里can_dlc保存的是按8位8位发送数据后余下的数据长度
-        int ret = sendto(sock,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&write_addr,sizeof(addr));
-        if (ret < 0) {
-			return ret;
-        }
-		nbytes = len;
-	} else {
-		my_strcpy((jbyte *)frame.data, send_data, len);
-		//frame.can_dlc = strlen(send_data);
-        frame.can_dlc = len;
-        int ret = sendto(sock,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&write_addr,sizeof(addr));
-        if (ret < 0) {
-			return ret;
-        }
-		//nbytes = strlen(send_data);
-        nbytes = len;
-	}
-
-	(*env)->ReleaseByteArrayElements(env, data, send_data, 0); //释放通过 GetByteArrayElements 函数获取的数组元素指针data
-//	LOGD("write nbytes=%d",nbytes);
-	return nbytes;
-}
-
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils
  * Method:    canClose
  * Signature: (I)I
  */
 JNIEXPORT jint JNICALL
-Java_com_example_x6_mc_1cantest_CanUtils_canClose(JNIEnv *env, jobject thiz){
-	if (sock != -1) {
-		close(sock); //关闭套接字
-	}
+Java_com_example_x6_mc_1cantest_CanUtils_doRealCanClose(JNIEnv *env, jobject thiz){
+
+//	char result[64];
+//	snprintf(result,sizeof(result),"ip link set %s down\n", port);
+//    LOGE("result = %s" ,result);
+//	int res = system("ip link set can0 down\n");
+//	LOGE("system result = %d",res);
+
 	for (int i = 0; i < currmax; i++)
-		close(sock_info[i].s);
+        if(sock_info[i].s != 0){
+			LOGE("sock_info[i] = %d",sock_info[i].s);
+			close(sock_info[i].s);
+		}
+	LOGE("fd_epoll = %d",fd_epoll);
 	close(fd_epoll);
 
 	frame_count = 0;
-	sock = -1;
-	close(s);
 	LOGD("Can close");
 	return true;
 }
@@ -242,13 +108,14 @@ Java_com_example_x6_mc_1cantest_CanUtils_canClose(JNIEnv *env, jobject thiz){
 #include <jni.h>
 
 JNIEXPORT jint JNICALL
-Java_com_example_x6_mc_1cantest_CanUtils_canSetFilters(JNIEnv* env, jobject thiz, jobject canFilters) {
+Java_com_example_x6_mc_1cantest_CanUtils_canSetFilters(JNIEnv* env, jobject thiz, jobject canFilters, jstring can) {
 	// 获取 List<CanFilter> 类的信息
 	jclass listClass = (*env)->GetObjectClass(env, canFilters);
 	jmethodID getMethod = (*env)->GetMethodID(env, listClass, "get", "(I)Ljava/lang/Object;");
 	jmethodID sizeMethod = (*env)->GetMethodID(env, listClass, "size", "()I");
 	jint length = (*env)->CallIntMethod(env, canFilters, sizeMethod);
 	struct can_filter filters[length];
+	const char *port = (*env)->GetStringUTFChars(env, can, NULL);
 
 	// 遍历 List<CanFilter>
 	for (jint i = 0; i < length; ++i) {
@@ -268,8 +135,9 @@ Java_com_example_x6_mc_1cantest_CanUtils_canSetFilters(JNIEnv* env, jobject thiz
 		filters[i].can_id = canId;
 		filters[i].can_mask =  canMask;
 		LOGE("canId = %u, canMask = %x", filters[i].can_id, filters[i].can_mask);
-
-		int res = setsockopt(sock,SOL_CAN_RAW,CAN_RAW_FILTER,&filters,sizeof(filters));
+		LOGE("port[3] = %d",port[3] -'0');
+		int res = setsockopt(sock_info[port[3] - '0'].s,SOL_CAN_RAW,CAN_RAW_FILTER,&filters,sizeof(filters));
+		LOGE("res = %d",res);
 		if(res != 0) return -1;
 		// 释放局部引用
 		(*env)->DeleteLocalRef(env, canFilter);
@@ -278,12 +146,20 @@ Java_com_example_x6_mc_1cantest_CanUtils_canSetFilters(JNIEnv* env, jobject thiz
 	return 0;
 }
 
+JNIEXPORT jint JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_canClearFilters(JNIEnv *env, jobject thiz){
+	for(int i = 0;i < currmax;i ++){
+		if(sock_info[i].s != 0){
+			setsockopt(sock_info[i].s,SOL_CAN_RAW,CAN_RAW_FILTER,NULL,0);
+		}
+	}
+}
+
 /******************************************************************************************************************/
 //canWriteBytesDebug
 #define CANID_DELIM '#'
 #define CC_DLC_DELIM '_'
 #define DATA_SEPERATOR '.'
-
 
 unsigned char asc2nibble(char c) {
 
@@ -383,38 +259,10 @@ int parse_canframe(char *cs, struct canfd_frame *cf) {
 	return ret;
 }
 
-static const unsigned char dlc2len[] = {0, 1, 2, 3, 4, 5, 6, 7,
-										8, 12, 16, 20, 24, 32, 48, 64};
-
-/* get data length from raw data length code (DLC) */
-unsigned char can_fd_dlc2len(unsigned char dlc)
-{
-	return dlc2len[dlc & 0x0F];
-}
-static const unsigned char len2dlc[] = {0, 1, 2, 3, 4, 5, 6, 7, 8,              /* 0 - 8 */
-										9, 9, 9, 9,                             /* 9 - 12 */
-										10, 10, 10, 10,                         /* 13 - 16 */
-										11, 11, 11, 11,                         /* 17 - 20 */
-										12, 12, 12, 12,                         /* 21 - 24 */
-										13, 13, 13, 13, 13, 13, 13, 13,         /* 25 - 32 */
-										14, 14, 14, 14, 14, 14, 14, 14,         /* 33 - 40 */
-										14, 14, 14, 14, 14, 14, 14, 14,         /* 41 - 48 */
-										15, 15, 15, 15, 15, 15, 15, 15,         /* 49 - 56 */
-										15, 15, 15, 15, 15, 15, 15, 15};        /* 57 - 64 */
-
-unsigned char can_fd_len2dlc(unsigned char len)
-{
-	if (len > 64)
-		return 0xF;
-
-	return len2dlc[len];
-}
-
-
-
 JNIEXPORT void JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytesDebug(JNIEnv *env, jobject thiz, jobject can_frame,
 															jstring can_port){
+	int s;
 	int required_mtu;
 	int num = 0, i = 0;
 	int enable_canfd = 1;
@@ -424,20 +272,21 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytesDebug(JNIEnv *env, jobject
 
 	//jfiedId是指针，用于访问和操作java类的字段
 	jclass canCls  = (*env)->GetObjectClass(env, can_frame);
-	jfieldID idCan = (*env)->GetFieldID(env, canCls, "canId", "J");
-	jfieldID idExtend = (*env)->GetFieldID(env, canCls, "idExtend", "Z");
-	jfieldID idLen = (*env)->GetFieldID(env, canCls,"len", "I");
+	jfieldID idCan = (*env)->GetFieldID(env, canCls, "canId", "Ljava/lang/String;");
+//	jfieldID idExtend = (*env)->GetFieldID(env, canCls, "idExtend", "Z");
+//	jfieldID idLen = (*env)->GetFieldID(env, canCls,"len", "I");
 	jfieldID idData = (*env)->GetFieldID(env, canCls, "data", "Ljava/lang/String;");
 
 
-	jint canId = (*env)->GetLongField(env, can_frame, idCan); //获取idCan所指向的数据赋值给canId
+	jstring canId = (*env)->GetObjectField(env, can_frame, idCan); //获取idCan所指向的数据赋值给canId
 	jstring data = (*env)->GetObjectField(env, can_frame, idData); // 获取idData所指向的数据赋值给data
 
+	char *final_canid = (*env)->GetStringUTFChars(env, canId, NULL);
 	char *final_data = (*env)->GetStringUTFChars(env, data, NULL);
 	const char *port = (*env)->GetStringUTFChars(env, can_port, NULL);
 	char result[64];
-	snprintf(result,sizeof(result),"%d#%s", canId, final_data);
-//	LOGE("result = %s",result);
+	snprintf(result,sizeof(result),"%s#%s", final_canid, final_data);
+	LOGE("result = %s",result);
 	required_mtu = parse_canframe(result, &frame);
 
     if (!required_mtu){
@@ -464,7 +313,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytesDebug(JNIEnv *env, jobject
 	addr.can_family = AF_CAN;
 	addr.can_ifindex = ifr.ifr_ifindex;
 
-	setsockopt(s, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0);
+//	setsockopt(s, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0);
 	if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		LOGE("bind error\n");
 		return ;
@@ -751,7 +600,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytesDebug(JNIEnv *env, jobject 
 			addr.can_ifindex = 0; /* any can interface */
 
 		/* try to switch the socket into CAN FD mode */
-		setsockopt(obj->s, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, &canfd_on, sizeof(canfd_on));
+		setsockopt(obj->s, SOL_CAN_RAW, CAN_RAW, &canfd_on, sizeof(canfd_on));
 
 		if (bind(obj->s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 			LOGE("bind");
@@ -785,7 +634,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytesDebug(JNIEnv *env, jobject 
 
 			if (nbytes < 0) {
 				LOGE("nbytes < 0 is true\n");
-				return ;
+				break;
 			}
 			if ((size_t)nbytes == CAN_MTU)
 				maxdlen = CAN_MAX_DLEN;
@@ -793,7 +642,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytesDebug(JNIEnv *env, jobject 
 				maxdlen = CANFD_MAX_DLEN;
 			else {
 				LOGE("read: incomplete CAN frame\n");
-				return ;
+				break ;
 			}
 			int idx = idx2dindex(addr.can_ifindex,obj->s);
 //			LOGE("CAN口 = %s",devname[idx]);

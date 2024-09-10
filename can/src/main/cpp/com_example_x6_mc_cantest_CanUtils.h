@@ -18,31 +18,14 @@ JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canOpen
 
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils
- * Method:    canReadBytes
- * Signature: ([B)[B
- */
-JNIEXPORT jobject JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canReadBytes
-  (JNIEnv *, jobject, jint, jboolean);
-
-
-/*
- * Class:     com_example_x6_mc_cantest_CanUtils
- * Method:    canWriteBytes
- * Signature: (ILjava/lang/String;)Z
- */
-JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytes
-  (JNIEnv *, jobject, jobject, jstring);
-
-/*
- * Class:     com_example_x6_mc_cantest_CanUtils
  * Method:    canClose
  * Signature: ()I
  */
-JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canClose
+JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_doRealCanClose
   (JNIEnv *, jobject);
 
 JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canSetFilters
-  (JNIEnv *, jobject , jobject canFilters);
+  (JNIEnv *, jobject , jobject canFilters, jstring can);
 
 JNIEXPORT void JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_canReadBytesDebug(JNIEnv *env, jobject thiz, jobject listener);
@@ -51,10 +34,14 @@ JNIEXPORT void JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytesDebug(JNIEnv *env, jobject thiz, jobject can_frame,
                                                             jstring can_port);
 
+JNIEXPORT jint JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_canClearFilters(JNIEnv *env, jobject thiz);
+
 #ifdef __cplusplus
 }
 #endif
 #endif
+
 
 
 

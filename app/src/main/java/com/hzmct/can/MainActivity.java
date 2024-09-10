@@ -26,8 +26,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         canUtils = CanUtils.getInstance();
-        canUtils.setCan("can0", "100000");
-        canUtils.canOpen();
+//        canUtils.setCan("can0", "100000");
+//        canUtils.canOpen();
         Button button1=(Button) findViewById(R.id.k1);
         can_text=(TextView) findViewById(R.id.can_rec);
 
