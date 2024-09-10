@@ -64,7 +64,7 @@ static const int canfd_on = 1;
 char buf[255];
 static int frame_count = 0;
 static volatile int running = 1;
-int fd_epoll;
+int fd_epoll; // epoll的文件描述符
 
 
 void my_strcpy(char *dest, char *src, size_t n)
