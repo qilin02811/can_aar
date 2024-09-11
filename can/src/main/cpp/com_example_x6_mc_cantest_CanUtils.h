@@ -22,13 +22,13 @@ JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canOpen
  * Signature: ()I
  */
 JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_doRealCanClose
-  (JNIEnv *, jobject);
+  (JNIEnv *, jobject, jstring can);
 
 JNIEXPORT jint JNICALL Java_com_example_x6_mc_1cantest_CanUtils_canSetFilters
   (JNIEnv *, jobject , jobject canFilters, jstring can);
 
 JNIEXPORT void JNICALL
-Java_com_example_x6_mc_1cantest_CanUtils_canReadBytesDebug(JNIEnv *env, jobject thiz, jobject listener);
+Java_com_example_x6_mc_1cantest_CanUtils_doRealCanReadBytes(JNIEnv *env, jobject thiz, jobject listener);
 
 JNIEXPORT void JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytesDebug(JNIEnv *env, jobject thiz, jobject can_frame,
@@ -37,10 +37,20 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytesDebug(JNIEnv *env, jobject
 JNIEXPORT jint JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_canClearFilters(JNIEnv *env, jobject thiz);
 
+
+JNIEXPORT jint JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_doSocketBind(JNIEnv *env, jobject thiz, jstring can);
+
+JNIEXPORT void JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_createEpoll(JNIEnv *env, jobject thiz);
+
 #ifdef __cplusplus
 }
 #endif
 #endif
+
+
+
 
 
 

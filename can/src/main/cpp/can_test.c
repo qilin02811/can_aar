@@ -83,23 +83,15 @@ void my_strcpy(char *dest, char *src, size_t n)
  * Signature: (I)I
  */
 JNIEXPORT jint JNICALL
-Java_com_example_x6_mc_1cantest_CanUtils_doRealCanClose(JNIEnv *env, jobject thiz){
+Java_com_example_x6_mc_1cantest_CanUtils_doRealCanClose(JNIEnv *env, jobject thiz, jstring can){
+	const char *port = (*env)->GetStringUTFChars(env, can, NULL);
 
-//	char result[64];
-//	snprintf(result,sizeof(result),"ip link set %s down\n", port);
-//    LOGE("result = %s" ,result);
-//	int res = system("ip link set can0 down\n");
-//	LOGE("system result = %d",res);
-
-	for (int i = 0; i < currmax; i++)
-        if(sock_info[i].s != 0){
-			LOGE("sock_info[i] = %d",sock_info[i].s);
-			close(sock_info[i].s);
-		}
+	close(sock_info[port[3] - '0'].s);
 	LOGE("fd_epoll = %d",fd_epoll);
 	close(fd_epoll);
 
 	frame_count = 0;
+	running = 0;
 	LOGD("Can close");
 	return true;
 }
@@ -533,80 +525,96 @@ static int idx2dindex(int ifidx, int socket)
 	return i;
 }
 
+struct epoll_event events_pending[MAXSOCK];
+struct epoll_event event_setup = {
+		.events = EPOLLIN, /* prepare the common part */
+};
+unsigned char view = 0;
+int  num_events;
+
+char *ptr[3] = {"can0","can1","can2"};
+struct sockaddr_can addr;
+char ctrlmsg[CMSG_SPACE(sizeof(struct timeval)) +
+			 CMSG_SPACE(3 * sizeof(struct timespec)) +
+			 CMSG_SPACE(sizeof(__u32))];
+struct iovec iov;
+struct msghdr msg;
+struct canfd_frame frame;
+int nbytes, maxdlen;
+struct ifreq ifr;
+int timeout_ms = -1; /* default to no timeout */
+
 JNIEXPORT void JNICALL
-Java_com_example_x6_mc_1cantest_CanUtils_canReadBytesDebug(JNIEnv *env, jobject thiz, jobject listener) {
-	jclass callClass = (*env)->GetObjectClass(env,listener);
-	jmethodID callMethod = (*env)->GetMethodID(env,callClass,"onData",
-											   "(Ljava/lang/String;Ljava/lang/String;I)V");
-
-	struct epoll_event events_pending[MAXSOCK];
-	struct epoll_event event_setup = {
-			.events = EPOLLIN, /* prepare the common part */
-	};
-	unsigned char view = 0;
-	int  num_events;
-
-	char *ptr[3] = {"can0","can1","can2"};
-	struct sockaddr_can addr;
-	char ctrlmsg[CMSG_SPACE(sizeof(struct timeval)) +
-				 CMSG_SPACE(3 * sizeof(struct timespec)) +
-				 CMSG_SPACE(sizeof(__u32))];
-	struct iovec iov;
-	struct msghdr msg;
-	struct canfd_frame frame;
-	int nbytes, i, maxdlen;
-	struct ifreq ifr;
-	int timeout_ms = -1; /* default to no timeout */
-
+Java_com_example_x6_mc_1cantest_CanUtils_createEpoll(JNIEnv *env, jobject thiz) {
+	LOGE("createEpoll begin");
 	fd_epoll = epoll_create(1);
 	if (fd_epoll < 0) {
 		perror("epoll_create");
 		return ;
 	}
+	LOGE("createEpoll end");
 
-	for (i = 0; i < currmax; i++) {
-		struct if_info* obj = &sock_info[i];
-		obj->s = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+}
 
-		if (obj->s < 0) {
-			LOGE("socket");
-			return ;
-		}
-
-		event_setup.data.ptr = obj; /* remember the instance as private data */
-		if (epoll_ctl(fd_epoll, EPOLL_CTL_ADD, obj->s, &event_setup)) {
-			LOGE("failed to add socket to epoll");
-			return ;
-		}
-
-		obj->cmdlinename = ptr[i]; /* save pointer to cmdline name of this socket */
-		nbytes = strlen(ptr[i]); /* no ',' found => no filter definitions */
-
-		if (nbytes > max_devname_len)
-			max_devname_len = nbytes; /* for nice printing */
-
-		addr.can_family = AF_CAN;
-
-		memset(&ifr.ifr_name, 0, sizeof(ifr.ifr_name));
-		strncpy(ifr.ifr_name, ptr[i], nbytes);
-
-		if (strcmp(ANYDEV, ifr.ifr_name) != 0) {
-			if (ioctl(obj->s, SIOCGIFINDEX, &ifr) < 0) {
-				perror("SIOCGIFINDEX");
-				exit(1);
-			}
-			addr.can_ifindex = ifr.ifr_ifindex;
-		} else
-			addr.can_ifindex = 0; /* any can interface */
-
-		/* try to switch the socket into CAN FD mode */
-		setsockopt(obj->s, SOL_CAN_RAW, CAN_RAW, &canfd_on, sizeof(canfd_on));
-
-		if (bind(obj->s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-			LOGE("bind");
-			return ;
-		}
+JNIEXPORT jint JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_doSocketBind(JNIEnv *env, jobject thiz, jstring can) {
+	char *port = (*env)->GetStringUTFChars(env, can, NULL);
+	LOGE("port = %s",port);
+	struct if_info* obj = &sock_info[port[3] - '0'];
+	obj->s = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+	LOGE("hello from line 576");
+	if (obj->s < 0) {
+		LOGE("socket");
+		return -1;
 	}
+
+	event_setup.data.ptr = obj; /* remember the instance as private data */
+	if (epoll_ctl(fd_epoll, EPOLL_CTL_ADD, obj->s, &event_setup)) {
+		LOGE("failed to add socket to epoll");
+		return -1;
+	}
+
+	obj->cmdlinename = port; /* save pointer to cmdline name of this socket */
+	nbytes = strlen(port); /* no ',' found => no filter definitions */
+
+	if (nbytes > max_devname_len)
+		max_devname_len = nbytes; /* for nice printing */
+
+	addr.can_family = AF_CAN;
+
+	memset(&ifr.ifr_name, 0, sizeof(ifr.ifr_name));
+	strncpy(ifr.ifr_name, port, nbytes);
+
+	if (strcmp(ANYDEV, ifr.ifr_name) != 0) {
+		if (ioctl(obj->s, SIOCGIFINDEX, &ifr) < 0) {
+			perror("SIOCGIFINDEX");
+			exit(1);
+		}
+		addr.can_ifindex = ifr.ifr_ifindex;
+	} else
+		addr.can_ifindex = 0; /* any can interface */
+
+	/* try to switch the socket into CAN FD mode */
+	setsockopt(obj->s, SOL_CAN_RAW, CAN_RAW, &canfd_on, sizeof(canfd_on));
+
+	if (bind(obj->s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		LOGE("bind");
+		return -1;
+	}
+	LOGE("hello from line 615");
+//	(*env)->DeleteLocalRef(env,port);
+
+	LOGE("hello from line 618");
+}
+
+
+JNIEXPORT void JNICALL
+Java_com_example_x6_mc_1cantest_CanUtils_doRealCanReadBytes(JNIEnv *env, jobject thiz, jobject listener) {
+	running = 1;
+	jclass callClass = (*env)->GetObjectClass(env,listener);
+	jmethodID callMethod = (*env)->GetMethodID(env,callClass,"onData",
+											   "(Ljava/lang/String;Ljava/lang/String;I)V");
+
 
 	/* these settings are static and can be held out of the hot path */
 	iov.iov_base = &frame;
@@ -618,11 +626,11 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytesDebug(JNIEnv *env, jobject 
 	while (running) {
 		num_events = epoll_wait(fd_epoll, events_pending, currmax, timeout_ms);
 		if (num_events == -1) {
-				running = 0;
+			running = 0;
 			continue;
 		}
         LOGE("num_events = %d",num_events);
-		for (i = 0; i < num_events; i++) {  /* check waiting CAN RAW sockets */
+		for (int i = 0; i < num_events; i++) {  /* check waiting CAN RAW sockets */
 			struct if_info* obj = events_pending[i].data.ptr;
 			/* these settings may be modified by recvmsg() */
 			iov.iov_len = sizeof(frame);
@@ -647,7 +655,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytesDebug(JNIEnv *env, jobject 
 			int idx = idx2dindex(addr.can_ifindex,obj->s);
 //			LOGE("CAN口 = %s",devname[idx]);
 			frame_count ++;
-//			LOGE("收到帧数 = %d\n",frame_count);
+			LOGE("收到帧数 = %d\n",frame_count);
 			fprint_long_canframe(stdout, &frame, NULL, view, maxdlen); //输出收到的can帧数据：canid can帧长度 can帧数据
 			jstring data = (*env)->NewStringUTF(env,buf);
 			jstring canPort = (*env)->NewStringUTF(env,devname[idx]);
@@ -656,6 +664,6 @@ Java_com_example_x6_mc_1cantest_CanUtils_canReadBytesDebug(JNIEnv *env, jobject 
             (*env)->DeleteLocalRef(env,canPort);
 		}
 	}
+    LOGE("canReadBytesDebug end");
 	(*env)->DeleteLocalRef(env,callClass);
 }
-
