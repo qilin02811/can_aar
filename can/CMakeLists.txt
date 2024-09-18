@@ -18,7 +18,6 @@ add_library( # Sets the name of the library.
 
         # Provides a relative path to your source file(s).
         src/main/cpp/can_test.c
-        src/main/cpp/can.h
         src/main/cpp/com_example_x6_mc_cantest_CanUtils.h)
 
 # Searches for a specified prebuilt library and stores the path as a
