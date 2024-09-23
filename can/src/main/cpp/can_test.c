@@ -251,24 +251,20 @@ int parse_canframe(char *cs, struct canfd_frame *cf) {
 	return ret;
 }
 
+int s;
+int required_mtu;
+struct canfd_frame frame;
+struct sockaddr_can addr;
+struct ifreq ifr;
+char result[64];
+
 JNIEXPORT void JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytesDebug(JNIEnv *env, jobject thiz, jobject can_frame,
 															jstring can_port){
-	int s;
-	int required_mtu;
-	int num = 0, i = 0;
-	int enable_canfd = 1;
-	struct canfd_frame frame;
-	struct sockaddr_can addr;
-	struct ifreq ifr;
-
 	//jfiedId是指针，用于访问和操作java类的字段
 	jclass canCls  = (*env)->GetObjectClass(env, can_frame);
 	jfieldID idCan = (*env)->GetFieldID(env, canCls, "canId", "Ljava/lang/String;");
-//	jfieldID idExtend = (*env)->GetFieldID(env, canCls, "idExtend", "Z");
-//	jfieldID idLen = (*env)->GetFieldID(env, canCls,"len", "I");
 	jfieldID idData = (*env)->GetFieldID(env, canCls, "data", "Ljava/lang/String;");
-
 
 	jstring canId = (*env)->GetObjectField(env, can_frame, idCan); //获取idCan所指向的数据赋值给canId
 	jstring data = (*env)->GetObjectField(env, can_frame, idData); // 获取idData所指向的数据赋值给data
@@ -276,7 +272,6 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytesDebug(JNIEnv *env, jobject
 	char *final_canid = (*env)->GetStringUTFChars(env, canId, NULL);
 	char *final_data = (*env)->GetStringUTFChars(env, data, NULL);
 	const char *port = (*env)->GetStringUTFChars(env, can_port, NULL);
-	char result[64];
 	snprintf(result,sizeof(result),"%s#%s", final_canid, final_data);
 	LOGE("result = %s",result);
 	required_mtu = parse_canframe(result, &frame);
@@ -284,12 +279,12 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytesDebug(JNIEnv *env, jobject
     if (!required_mtu){
         fprintf(stderr, "\nWrong CAN-frame format!\n\n");
         LOGE("error in format");
-        return ;
+//        return ;
     }
 
     if((s = socket(PF_CAN, SOCK_RAW, CAN_RAW)) < 0){
-		LOGE("error in socket");
-		return ;
+		LOGE("error in apply for socket");
+//		return ;
 	}
 
 	strncpy(ifr.ifr_name, port, IFNAMSIZ - 1);
@@ -297,28 +292,26 @@ Java_com_example_x6_mc_1cantest_CanUtils_canWriteBytesDebug(JNIEnv *env, jobject
 
 	if(ioctl(s,SIOGIFINDEX,&ifr) == -1){
 		LOGD("ioctl failed");
-		return ;
+//		return ;
 	}
-//	LOGE("ifr.ifr_ifindex = %d\n",ifr.ifr_ifindex);
 
 	memset(&addr, 0, sizeof(addr));
 	addr.can_family = AF_CAN;
 	addr.can_ifindex = ifr.ifr_ifindex;
 
-//	setsockopt(s, SOL_CAN_RAW, CAN_RAW_FILTER, NULL, 0);
 	if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		LOGE("bind error\n");
-		return ;
+//		return ;
 	}
 
 	LOGE("s = %d",s);
 	if (write(s, &frame, required_mtu) != required_mtu) {
 		LOGE("write socket %d error\n",s);
-		return ;
+//		return ;
 	}
-	close(s);
 	(*env)->ReleaseStringUTFChars(env, data, final_data);
 	(*env)->ReleaseStringUTFChars(env, can_port, port);
+	close(s);
 }
 
 /***********************************************************************************************************************/
