@@ -41,6 +41,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_canClearFilters(JNIEnv *env, jobject th
 JNIEXPORT jint JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_doSocketBind(JNIEnv *env, jobject thiz, jstring can);
 
+// create epoll
 JNIEXPORT void JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_createEpoll(JNIEnv *env, jobject thiz);
 

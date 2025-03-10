@@ -66,17 +66,6 @@ static int frame_count = 0;
 static volatile int running = 1;
 int fd_epoll; // epoll的文件描述符
 
-
-void my_strcpy(char *dest, char *src, size_t n)
-{
-	char i = 0;
-	while(i < n)
-	{
-		*(dest++) = *(src++);
-		i++;
-	}
-}
-
 /*
  * Class:     com_example_x6_mc_cantest_CanUtils
  * Method:    canClose
@@ -85,11 +74,9 @@ void my_strcpy(char *dest, char *src, size_t n)
 JNIEXPORT jint JNICALL
 Java_com_example_x6_mc_1cantest_CanUtils_doRealCanClose(JNIEnv *env, jobject thiz, jstring can){
 	const char *port = (*env)->GetStringUTFChars(env, can, NULL);
-
 	close(sock_info[port[3] - '0'].s);
 	LOGE("fd_epoll = %d",fd_epoll);
 	close(fd_epoll);
-
 	frame_count = 0;
 	running = 0;
 	LOGD("Can close");
@@ -150,7 +137,6 @@ Java_com_example_x6_mc_1cantest_CanUtils_canClearFilters(JNIEnv *env, jobject th
 /******************************************************************************************************************/
 //canWriteBytesDebug
 #define CANID_DELIM '#'
-#define CC_DLC_DELIM '_'
 #define DATA_SEPERATOR '.'
 
 unsigned char asc2nibble(char c) {
@@ -206,16 +192,12 @@ int parse_canframe(char *cs, struct canfd_frame *cf) {
 	} else
 		return 0;
 
-
 	if (cs[idx] == CANID_DELIM) { /* CAN FD frame escape char '##' */
-
 		maxdlen = CANFD_MAX_DLEN;
 		ret = CANFD_MTU;
-
 		/* CAN FD frame <canid>##<flags><data>* */
 		if ((tmp = asc2nibble(cs[idx+1])) > 0x0F)
 			return 0;
-
 		cf->flags = tmp;
 		idx += 2;
 	}
@@ -236,18 +218,6 @@ int parse_canframe(char *cs, struct canfd_frame *cf) {
 		dlen++;
 	}
 	cf->len = dlen;
-
-	/* check for extra DLC when having a Classic CAN with 8 bytes payload */
-//	if ((maxdlen == CAN_MAX_DLEN) && (dlen == CAN_MAX_DLEN) && (cs[idx++] == CC_DLC_DELIM)) {
-//		unsigned char dlc = asc2nibble(cs[idx]);
-//
-//		if ((dlc > CAN_MAX_DLEN) && (dlc <= CAN_MAX_RAW_DLC)) {
-//			struct can_frame *ccf = (struct can_frame *)cf;
-//
-//			ccf->len8_dlc = dlc;
-//		}
-//	}
-
 	return ret;
 }
 
@@ -546,7 +516,6 @@ Java_com_example_x6_mc_1cantest_CanUtils_createEpoll(JNIEnv *env, jobject thiz) 
 		return ;
 	}
 	LOGE("createEpoll end");
-
 }
 
 JNIEXPORT jint JNICALL
@@ -594,10 +563,8 @@ Java_com_example_x6_mc_1cantest_CanUtils_doSocketBind(JNIEnv *env, jobject thiz,
 		LOGE("bind");
 		return -1;
 	}
-	LOGE("hello from line 615");
 //	(*env)->DeleteLocalRef(env,port);
 
-	LOGE("hello from line 618");
 }
 
 
@@ -607,7 +574,6 @@ Java_com_example_x6_mc_1cantest_CanUtils_doRealCanReadBytes(JNIEnv *env, jobject
 	jclass callClass = (*env)->GetObjectClass(env,listener);
 	jmethodID callMethod = (*env)->GetMethodID(env,callClass,"onData",
 											   "(Ljava/lang/String;Ljava/lang/String;I)V");
-
 
 	/* these settings are static and can be held out of the hot path */
 	iov.iov_base = &frame;
@@ -648,7 +614,7 @@ Java_com_example_x6_mc_1cantest_CanUtils_doRealCanReadBytes(JNIEnv *env, jobject
 			int idx = idx2dindex(addr.can_ifindex,obj->s);
 //			LOGE("CAN口 = %s",devname[idx]);
 			frame_count ++;
-			LOGE("收到帧数 = %d\n",frame_count);
+			LOGE("recv frame count = %d\n",frame_count);
 			fprint_long_canframe(stdout, &frame, NULL, view, maxdlen); //输出收到的can帧数据：canid can帧长度 can帧数据
 			jstring data = (*env)->NewStringUTF(env,buf);
 			jstring canPort = (*env)->NewStringUTF(env,devname[idx]);
